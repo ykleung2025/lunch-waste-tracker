@@ -34,6 +34,10 @@
     lbEmpty: document.getElementById('lb-empty'),
     lbTable: document.getElementById('lb-table'),
     lbBody: document.getElementById('lb-body'),
+    mostMissedValue: document.getElementById('most-missed-value'),
+    mostMissedDetail: document.getElementById('most-missed-detail'),
+    highestAvgValue: document.getElementById('highest-avg-value'),
+    highestAvgDetail: document.getElementById('highest-avg-detail'),
   };
 
   // ——— 香港日期 YYYY-MM-DD ———
@@ -48,6 +52,22 @@
 
   function monthPrefix(dateStr) {
     return dateStr.slice(0, 7); // YYYY-MM
+  }
+
+  /**
+   * 上學日：本月 1 日至 asOfDate（含）的所有日曆天（Asia/Hong_Kong），不做假日排除。
+   */
+  function schoolDayList(asOfDate) {
+    const parts = String(asOfDate).split('-');
+    const y = parts[0];
+    const m = parts[1];
+    const d = Number(parts[2]);
+    const list = [];
+    for (let day = 1; day <= d; day++) {
+      const dd = day < 10 ? '0' + day : String(day);
+      list.push(y + '-' + m + '-' + dd);
+    }
+    return list;
   }
 
   // ——— 鼓勵／讚美文案 ———
@@ -116,6 +136,74 @@
     localStorage.setItem(MOCK_KEY, JSON.stringify(rows));
   }
 
+  /**
+   * 本月最常漏登記的班級（上學日 = 月初至今日含）。
+   */
+  function computeMostMissed(rows, asOfDate) {
+    const ym = monthPrefix(asOfDate);
+    const days = schoolDayList(asOfDate);
+    const totalDays = days.length;
+    const submitted = {};
+    rows.forEach((r) => {
+      if (!String(r.date).startsWith(ym)) return;
+      if (!submitted[r.class]) submitted[r.class] = {};
+      submitted[r.class][r.date] = true;
+    });
+
+    let maxMissed = -1;
+    let winners = [];
+    CLASSES.forEach((cls) => {
+      let missed = 0;
+      days.forEach((day) => {
+        if (!submitted[cls] || !submitted[cls][day]) missed++;
+      });
+      if (missed > maxMissed) {
+        maxMissed = missed;
+        winners = [cls];
+      } else if (missed === maxMissed) {
+        winners.push(cls);
+      }
+    });
+
+    return {
+      class: winners.length ? winners[0] : null,
+      classes: winners,
+      missedDays: maxMissed < 0 ? 0 : maxMissed,
+      totalDays: totalDays,
+    };
+  }
+
+  /**
+   * 本月平均剩食最高的班級（至少一筆）。
+   */
+  function computeHighestAvg(rows, ym) {
+    let bestAvg = null;
+    let winners = [];
+
+    CLASSES.forEach((cls) => {
+      const weights = rows
+        .filter((r) => r.class === cls && String(r.date).startsWith(ym))
+        .map((r) => Number(r.weight_kg));
+      if (weights.length === 0) return;
+      const avg = weights.reduce((a, b) => a + b, 0) / weights.length;
+      if (bestAvg === null || avg > bestAvg) {
+        bestAvg = avg;
+        winners = [cls];
+      } else if (avg === bestAvg) {
+        winners.push(cls);
+      }
+    });
+
+    if (winners.length === 0) {
+      return { class: null, classes: [], avg: null };
+    }
+    return {
+      class: winners[0],
+      classes: winners,
+      avg: round2(bestAvg),
+    };
+  }
+
   function computeStats(rows, className, today) {
     const ym = monthPrefix(today);
     const classMonth = rows.filter(
@@ -155,6 +243,8 @@
       monthlyAvg: monthlyAvg === null ? null : round2(monthlyAvg),
       sampleCount: weights.length,
       gradeMins,
+      mostMissed: computeMostMissed(rows, today),
+      highestAvg: computeHighestAvg(rows, ym),
       month: ym,
     };
   }
@@ -186,12 +276,6 @@
     const stats = computeStats(rows, className, today);
     const above =
       stats.monthlyAvg !== null && weight > stats.monthlyAvg;
-    // Equal or below → praise; above → encourage
-    // After submit, average includes today. Compare today's weight to the NEW average
-    // which includes today. Spec: "whether today is above/below that average"
-    // Use average of all month records INCLUDING today, or excluding?
-    // Typically "monthly average" after submit includes today. Comparing today to
-    // average that includes today: if only 1 record, equal. That's fine (praise).
     const message = above ? pick(ENCOURAGE) : pick(PRAISE);
 
     return {
@@ -202,6 +286,8 @@
       comparison: above ? 'above' : weight < (stats.monthlyAvg || weight) ? 'below' : 'equal',
       message,
       gradeMins: stats.gradeMins,
+      mostMissed: stats.mostMissed,
+      highestAvg: stats.highestAvg,
       month: stats.month,
     };
   }
@@ -212,6 +298,8 @@
     return {
       ok: true,
       gradeMins: stats.gradeMins,
+      mostMissed: stats.mostMissed,
+      highestAvg: stats.highestAvg,
       month: stats.month,
     };
   }
@@ -240,6 +328,56 @@
       throw new Error('伺服器回應錯誤：' + res.status);
     }
     return res.json();
+  }
+
+  // ——— Extra monthly stats render ———
+  function formatClassList(info) {
+    if (!info) return '—';
+    const list =
+      Array.isArray(info.classes) && info.classes.length
+        ? info.classes
+        : info.class
+          ? [info.class]
+          : [];
+    return list.length ? list.join('、') : '—';
+  }
+
+  function renderExtraStats(mostMissed, highestAvg, month) {
+    if (el.mostMissedValue) {
+      if (!mostMissed || mostMissed.class == null) {
+        el.mostMissedValue.textContent = '—';
+        el.mostMissedDetail.textContent =
+          '本月（' + (month || '') + '）尚無足夠資料可計算。';
+      } else {
+        el.mostMissedValue.textContent = formatClassList(mostMissed);
+        el.mostMissedDetail.textContent =
+          '漏登記 ' +
+          mostMissed.missedDays +
+          ' 天／本月上學日共 ' +
+          mostMissed.totalDays +
+          ' 天' +
+          (Array.isArray(mostMissed.classes) && mostMissed.classes.length > 1
+            ? '（並列）'
+            : '');
+      }
+    }
+
+    if (el.highestAvgValue) {
+      if (!highestAvg || highestAvg.class == null || highestAvg.avg == null) {
+        el.highestAvgValue.textContent = '—';
+        el.highestAvgDetail.textContent =
+          '本月（' + (month || '') + '）尚無登記資料。';
+      } else {
+        el.highestAvgValue.textContent = formatClassList(highestAvg);
+        el.highestAvgDetail.textContent =
+          '本月平均 ' +
+          Number(highestAvg.avg).toFixed(2) +
+          ' kg' +
+          (Array.isArray(highestAvg.classes) && highestAvg.classes.length > 1
+            ? '（並列）'
+            : '');
+      }
+    }
   }
 
   // ——— Leaderboard render ———
@@ -303,15 +441,26 @@
     el.lbEmpty.hidden = false;
     el.lbEmpty.textContent = '載入中…';
     el.lbTable.hidden = true;
+    if (el.mostMissedValue) {
+      el.mostMissedValue.textContent = '…';
+      el.mostMissedDetail.textContent = '載入中…';
+    }
+    if (el.highestAvgValue) {
+      el.highestAvgValue.textContent = '…';
+      el.highestAvgDetail.textContent = '載入中…';
+    }
     try {
       const data = await apiCall({ action: 'stats', date: hkToday() });
       if (!data.ok) {
         el.lbEmpty.textContent = data.message || '無法載入榜單';
+        renderExtraStats(null, null, data.month);
         return;
       }
       renderLeaderboard(data.gradeMins, data.month);
+      renderExtraStats(data.mostMissed, data.highestAvg, data.month);
     } catch (err) {
       el.lbEmpty.textContent = '載入失敗：' + (err.message || String(err));
+      renderExtraStats(null, null, null);
     }
   }
 
@@ -388,6 +537,7 @@
       el.weightInput.value = '';
       if (data.gradeMins) {
         renderLeaderboard(data.gradeMins, data.month);
+        renderExtraStats(data.mostMissed, data.highestAvg, data.month);
       } else {
         await loadStats();
       }

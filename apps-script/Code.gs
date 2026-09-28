@@ -9,6 +9,9 @@
  *   { "action": "stats",  "date": "2026-09-28" }
  *
  * 亦支援 doGet?action=stats&date=YYYY-MM-DD 讀取統計。
+ *
+ * 「上學日」定義：本月 1 日至今日（含）的所有日曆天（Asia/Hong_Kong），
+ * 不做假日排除。用於計算 mostMissed（最常漏登記的班級）。
  */
 
 var SHEET_NAME = '紀錄';
@@ -98,6 +101,102 @@ function normalizeDate_(v) {
   // already YYYY-MM-DD
   if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.substring(0, 10);
   return s;
+}
+
+function schoolDayList_(asOfDate) {
+  var parts = String(asOfDate).split('-');
+  var y = parts[0];
+  var m = parts[1];
+  var d = Number(parts[2]);
+  var list = [];
+  for (var day = 1; day <= d; day++) {
+    var dd = day < 10 ? '0' + day : String(day);
+    list.push(y + '-' + m + '-' + dd);
+  }
+  return list;
+}
+
+/**
+ * 本月最常漏登記的班級。
+ * missedDays = 上學日中沒有該班紀錄的天數；平手則全部列入 classes，class 取第一名。
+ */
+function computeMostMissed_(rows, asOfDate) {
+  var ym = String(asOfDate).substring(0, 7);
+  var days = schoolDayList_(asOfDate);
+  var totalDays = days.length;
+  var classes = validClasses_();
+
+  // submitted[class][date] = true
+  var submitted = {};
+  for (var i = 0; i < rows.length; i++) {
+    var r = rows[i];
+    if (String(r.date).indexOf(ym) !== 0) continue;
+    if (!submitted[r.class]) submitted[r.class] = {};
+    submitted[r.class][r.date] = true;
+  }
+
+  var maxMissed = -1;
+  var winners = [];
+  for (var c = 0; c < classes.length; c++) {
+    var cls = classes[c];
+    var missed = 0;
+    for (var di = 0; di < days.length; di++) {
+      if (!submitted[cls] || !submitted[cls][days[di]]) {
+        missed++;
+      }
+    }
+    if (missed > maxMissed) {
+      maxMissed = missed;
+      winners = [cls];
+    } else if (missed === maxMissed) {
+      winners.push(cls);
+    }
+  }
+
+  return {
+    class: winners.length ? winners[0] : null,
+    classes: winners,
+    missedDays: maxMissed < 0 ? 0 : maxMissed,
+    totalDays: totalDays,
+  };
+}
+
+/**
+ * 本月平均剩食最高的班級（至少有一筆紀錄）。平手則全部列入 classes。
+ */
+function computeHighestAvg_(rows, ym) {
+  var classes = validClasses_();
+  var bestAvg = null;
+  var winners = [];
+
+  for (var c = 0; c < classes.length; c++) {
+    var cls = classes[c];
+    var weights = [];
+    for (var i = 0; i < rows.length; i++) {
+      if (rows[i].class === cls && String(rows[i].date).indexOf(ym) === 0) {
+        weights.push(Number(rows[i].weight_kg));
+      }
+    }
+    if (weights.length === 0) continue;
+    var sum = 0;
+    for (var j = 0; j < weights.length; j++) sum += weights[j];
+    var avg = sum / weights.length;
+    if (bestAvg === null || avg > bestAvg) {
+      bestAvg = avg;
+      winners = [cls];
+    } else if (avg === bestAvg) {
+      winners.push(cls);
+    }
+  }
+
+  if (winners.length === 0) {
+    return { class: null, classes: [], avg: null };
+  }
+  return {
+    class: winners[0],
+    classes: winners,
+    avg: round2_(bestAvg),
+  };
 }
 
 function computeGradeMins_(rows, ym) {
@@ -213,6 +312,8 @@ function handleSubmit_(body) {
   var comparison = above ? 'above' : (weight < monthlyAvg ? 'below' : 'equal');
   var message = above ? pick_(ENCOURAGE) : pick_(PRAISE);
   var gradeMins = computeGradeMins_(rows, ym);
+  var mostMissed = computeMostMissed_(rows, dateStr);
+  var highestAvg = computeHighestAvg_(rows, ym);
 
   return jsonOut_({
     ok: true,
@@ -222,6 +323,8 @@ function handleSubmit_(body) {
     comparison: comparison,
     message: message,
     gradeMins: gradeMins,
+    mostMissed: mostMissed,
+    highestAvg: highestAvg,
     month: ym,
   });
 }
@@ -235,9 +338,13 @@ function handleStats_(body) {
   var sheet = getOrCreateSheet_();
   var rows = readAllRows_(sheet);
   var gradeMins = computeGradeMins_(rows, ym);
+  var mostMissed = computeMostMissed_(rows, dateStr);
+  var highestAvg = computeHighestAvg_(rows, ym);
   return jsonOut_({
     ok: true,
     gradeMins: gradeMins,
+    mostMissed: mostMissed,
+    highestAvg: highestAvg,
     month: ym,
   });
 }
