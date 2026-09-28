@@ -438,3 +438,13 @@ tr:hover td {
     font-size: 1.25rem;
   }
 }
+
+/* ——— 循環日徽章 ——— */
+#cycle-day-badge {
+  font-weight: 700;
+}
+
+#cycle-day-badge.is-off {
+  opacity: 0.85;
+  background: rgba(255, 255, 255, 0.12);
+}

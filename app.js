@@ -5,10 +5,18 @@
 (function () {
   'use strict';
 
-  const GRADES = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6'];
+  const GRADES = ['P3', 'P4', 'P5', 'P6'];
   const SECTIONS = ['A', 'B', 'C', 'D'];
   const CLASSES = GRADES.flatMap((g) => SECTIONS.map((s) => g + s));
   const MOCK_KEY = 'lunch_waste_tracker_records_v1';
+
+  /** 2026–27 校曆循環日（D1–D6），自 school-days-2026-27.json 嵌入 */
+  const SCHOOL_DAYS = [{"date":"2026-09-04","day":"D1"},{"date":"2026-09-07","day":"D2"},{"date":"2026-09-08","day":"D3"},{"date":"2026-09-09","day":"D4"},{"date":"2026-09-10","day":"D5"},{"date":"2026-09-11","day":"D6"},{"date":"2026-09-15","day":"D1"},{"date":"2026-09-16","day":"D2"},{"date":"2026-09-17","day":"D3"},{"date":"2026-09-18","day":"D4"},{"date":"2026-09-21","day":"D5"},{"date":"2026-09-22","day":"D6"},{"date":"2026-09-23","day":"D1"},{"date":"2026-09-24","day":"D2"},{"date":"2026-09-25","day":"D3"},{"date":"2026-09-28","day":"D4"},{"date":"2026-09-29","day":"D5"},{"date":"2026-09-30","day":"D6"},{"date":"2026-10-02","day":"D1"},{"date":"2026-10-05","day":"D2"},{"date":"2026-10-06","day":"D3"},{"date":"2026-10-07","day":"D4"},{"date":"2026-10-08","day":"D5"},{"date":"2026-10-09","day":"D6"},{"date":"2026-10-12","day":"D1"},{"date":"2026-10-13","day":"D2"},{"date":"2026-10-14","day":"D3"},{"date":"2026-10-15","day":"D4"},{"date":"2026-10-20","day":"D5"},{"date":"2026-10-21","day":"D6"},{"date":"2026-10-22","day":"D1"},{"date":"2026-10-23","day":"D2"},{"date":"2026-10-26","day":"D3"},{"date":"2026-10-27","day":"D4"},{"date":"2026-10-28","day":"D5"},{"date":"2026-10-29","day":"D6"},{"date":"2026-10-30","day":"D1"},{"date":"2026-11-02","day":"D2"},{"date":"2026-11-03","day":"D3"},{"date":"2026-11-04","day":"D4"},{"date":"2026-11-05","day":"D5"},{"date":"2026-11-06","day":"D6"},{"date":"2026-11-09","day":"D1"},{"date":"2026-11-10","day":"D2"},{"date":"2026-11-11","day":"D3"},{"date":"2026-11-13","day":"D4"},{"date":"2026-11-17","day":"D5"},{"date":"2026-11-18","day":"D6"},{"date":"2026-11-19","day":"D1"},{"date":"2026-11-23","day":"D2"},{"date":"2026-11-24","day":"D3"},{"date":"2026-11-25","day":"D4"},{"date":"2026-11-26","day":"D5"},{"date":"2026-11-30","day":"D6"},{"date":"2026-12-01","day":"D1"},{"date":"2026-12-02","day":"D2"},{"date":"2026-12-03","day":"D3"},{"date":"2026-12-04","day":"D4"},{"date":"2026-12-07","day":"D5"},{"date":"2026-12-08","day":"D6"},{"date":"2026-12-09","day":"D1"},{"date":"2026-12-10","day":"D2"},{"date":"2026-12-11","day":"D3"},{"date":"2026-12-14","day":"D4"},{"date":"2026-12-15","day":"D5"},{"date":"2026-12-16","day":"D6"},{"date":"2026-12-17","day":"D1"},{"date":"2026-12-18","day":"D2"},{"date":"2026-12-21","day":"D3"},{"date":"2027-01-04","day":"D4"},{"date":"2027-01-05","day":"D5"},{"date":"2027-01-06","day":"D6"},{"date":"2027-01-07","day":"D1"},{"date":"2027-01-08","day":"D2"},{"date":"2027-01-13","day":"D3"},{"date":"2027-01-14","day":"D4"},{"date":"2027-01-15","day":"D5"},{"date":"2027-01-18","day":"D6"},{"date":"2027-01-19","day":"D1"},{"date":"2027-01-20","day":"D2"},{"date":"2027-01-21","day":"D3"},{"date":"2027-01-22","day":"D4"},{"date":"2027-01-25","day":"D5"},{"date":"2027-01-26","day":"D6"},{"date":"2027-01-27","day":"D1"},{"date":"2027-01-28","day":"D2"},{"date":"2027-02-01","day":"D3"},{"date":"2027-02-02","day":"D4"},{"date":"2027-02-15","day":"D5"},{"date":"2027-02-16","day":"D6"},{"date":"2027-02-17","day":"D1"},{"date":"2027-02-18","day":"D2"},{"date":"2027-02-22","day":"D3"},{"date":"2027-02-23","day":"D4"},{"date":"2027-02-24","day":"D5"},{"date":"2027-02-25","day":"D6"},{"date":"2027-02-26","day":"D1"},{"date":"2027-03-01","day":"D2"},{"date":"2027-03-02","day":"D3"},{"date":"2027-03-03","day":"D4"},{"date":"2027-03-15","day":"D5"},{"date":"2027-03-16","day":"D6"},{"date":"2027-03-17","day":"D1"},{"date":"2027-03-18","day":"D2"},{"date":"2027-03-19","day":"D3"},{"date":"2027-03-22","day":"D4"},{"date":"2027-03-23","day":"D5"},{"date":"2027-03-24","day":"D6"},{"date":"2027-03-25","day":"D1"},{"date":"2027-04-07","day":"D2"},{"date":"2027-04-08","day":"D3"},{"date":"2027-04-09","day":"D4"},{"date":"2027-04-12","day":"D5"},{"date":"2027-04-13","day":"D6"},{"date":"2027-04-14","day":"D1"},{"date":"2027-04-15","day":"D2"},{"date":"2027-04-16","day":"D3"},{"date":"2027-04-19","day":"D4"},{"date":"2027-04-20","day":"D5"},{"date":"2027-04-21","day":"D6"},{"date":"2027-04-22","day":"D1"},{"date":"2027-04-26","day":"D2"},{"date":"2027-04-27","day":"D3"},{"date":"2027-04-28","day":"D4"},{"date":"2027-04-29","day":"D5"},{"date":"2027-04-30","day":"D6"},{"date":"2027-05-03","day":"D1"},{"date":"2027-05-04","day":"D2"},{"date":"2027-05-05","day":"D3"},{"date":"2027-05-06","day":"D4"},{"date":"2027-05-11","day":"D5"},{"date":"2027-05-12","day":"D6"},{"date":"2027-05-14","day":"D1"},{"date":"2027-05-17","day":"D2"},{"date":"2027-05-18","day":"D3"},{"date":"2027-05-19","day":"D4"},{"date":"2027-05-20","day":"D5"},{"date":"2027-05-21","day":"D6"},{"date":"2027-05-24","day":"D1"},{"date":"2027-05-25","day":"D2"},{"date":"2027-05-26","day":"D3"},{"date":"2027-05-27","day":"D4"},{"date":"2027-05-28","day":"D5"},{"date":"2027-05-31","day":"D6"},{"date":"2027-06-01","day":"D1"},{"date":"2027-06-02","day":"D2"},{"date":"2027-06-10","day":"D3"},{"date":"2027-06-11","day":"D4"},{"date":"2027-06-14","day":"D5"},{"date":"2027-06-15","day":"D6"},{"date":"2027-06-16","day":"D1"},{"date":"2027-06-17","day":"D2"},{"date":"2027-06-18","day":"D3"},{"date":"2027-06-21","day":"D4"},{"date":"2027-06-22","day":"D5"},{"date":"2027-06-23","day":"D6"},{"date":"2027-06-24","day":"D1"},{"date":"2027-06-28","day":"D2"},{"date":"2027-06-29","day":"D3"},{"date":"2027-06-30","day":"D4"},{"date":"2027-07-05","day":"D5"},{"date":"2027-07-06","day":"D6"},{"date":"2027-07-07","day":"D1"}];
+
+  const SCHOOL_DAY_MAP = Object.create(null);
+  SCHOOL_DAYS.forEach((entry) => {
+    SCHOOL_DAY_MAP[entry.date] = entry.day;
+  });
 
   const cfg = window.LUNCH_WASTE_CONFIG || {};
   const USE_MOCK = cfg.USE_MOCK !== false && (
@@ -22,6 +30,7 @@
     classSelect: document.getElementById('class-select'),
     todayDate: document.getElementById('today-date'),
     headerDate: document.getElementById('header-date'),
+    cycleDayBadge: document.getElementById('cycle-day-badge'),
     weightInput: document.getElementById('weight-input'),
     form: document.getElementById('waste-form'),
     submitBtn: document.getElementById('submit-btn'),
@@ -54,20 +63,22 @@
     return dateStr.slice(0, 7); // YYYY-MM
   }
 
+  function cycleDayFor(dateStr) {
+    return SCHOOL_DAY_MAP[dateStr] || null;
+  }
+
+  function isSchoolDay(dateStr) {
+    return !!cycleDayFor(dateStr);
+  }
+
   /**
-   * 上學日：本月 1 日至 asOfDate（含）的所有日曆天（Asia/Hong_Kong），不做假日排除。
+   * 本月 1 日至 asOfDate（含）之間的校曆 D1–D6 日期清單。
    */
   function schoolDayList(asOfDate) {
-    const parts = String(asOfDate).split('-');
-    const y = parts[0];
-    const m = parts[1];
-    const d = Number(parts[2]);
-    const list = [];
-    for (let day = 1; day <= d; day++) {
-      const dd = day < 10 ? '0' + day : String(day);
-      list.push(y + '-' + m + '-' + dd);
-    }
-    return list;
+    const ym = monthPrefix(asOfDate);
+    return SCHOOL_DAYS
+      .filter((entry) => entry.date.startsWith(ym) && entry.date <= asOfDate)
+      .map((entry) => entry.date);
   }
 
   // ——— 鼓勵／讚美文案 ———
@@ -101,6 +112,28 @@
       opt.textContent = displayClassName(c);
       el.classSelect.appendChild(opt);
     });
+  }
+
+  function showCycleDay(today) {
+    const day = cycleDayFor(today);
+    if (el.cycleDayBadge) {
+      if (day) {
+        el.cycleDayBadge.hidden = false;
+        el.cycleDayBadge.textContent = '今日 ' + day;
+      } else {
+        el.cycleDayBadge.hidden = false;
+        el.cycleDayBadge.textContent = '今日非循環日';
+        el.cycleDayBadge.classList.add('is-off');
+      }
+    }
+    if (el.todayDate) {
+      el.todayDate.textContent = day ? today + '（' + day + '）' : today;
+    }
+    if (el.headerDate) {
+      el.headerDate.textContent = day
+        ? today + '（香港）· 今日 ' + day
+        : today + '（香港）';
+    }
   }
 
   function showFeedback(kind, title, msg, statsHtml) {
@@ -142,12 +175,15 @@
   }
 
   /**
-   * 本月最常漏登記的班級（上學日 = 月初至今日含）。
+   * 本月最常漏登記的班級（僅計本月 D1–D6 至今日含）。
    */
   function computeMostMissed(rows, asOfDate) {
     const ym = monthPrefix(asOfDate);
     const days = schoolDayList(asOfDate);
     const totalDays = days.length;
+    if (totalDays === 0) {
+      return { class: null, classes: [], missedDays: 0, totalDays: 0 };
+    }
     const submitted = {};
     rows.forEach((r) => {
       if (!String(r.date).startsWith(ym)) return;
@@ -251,6 +287,7 @@
       mostMissed: computeMostMissed(rows, today),
       highestAvg: computeHighestAvg(rows, ym),
       month: ym,
+      cycleDay: cycleDayFor(today),
     };
   }
 
@@ -259,6 +296,16 @@
   }
 
   function mockSubmit(className, weight, today) {
+    if (!isSchoolDay(today)) {
+      return {
+        ok: false,
+        error: 'not_school_day',
+        message:
+          '今天不是校曆上的循環日（D1–D6），不用登記午餐剩食喔！請在有 D 日的上學日再來登記。📅',
+        cycleDay: null,
+      };
+    }
+
     const rows = mockLoad();
     const dup = rows.find((r) => r.date === today && r.class === className);
     if (dup) {
@@ -294,6 +341,7 @@
       mostMissed: stats.mostMissed,
       highestAvg: stats.highestAvg,
       month: stats.month,
+      cycleDay: stats.cycleDay,
     };
   }
 
@@ -306,6 +354,7 @@
       mostMissed: stats.mostMissed,
       highestAvg: stats.highestAvg,
       month: stats.month,
+      cycleDay: stats.cycleDay,
     };
   }
 
@@ -358,7 +407,7 @@
         el.mostMissedDetail.textContent =
           '漏登記 ' +
           mostMissed.missedDays +
-          ' 天／本月上學日共 ' +
+          ' 天／本月循環日共 ' +
           mostMissed.totalDays +
           ' 天' +
           (Array.isArray(mostMissed.classes) && mostMissed.classes.length > 1
@@ -480,11 +529,19 @@
     const today = hkToday();
 
     if (!CLASSES.includes(className)) {
-      showFeedback('error', '哎呀！', '請選擇有效的班級（P1A–P6D）。');
+      showFeedback('error', '哎呀！', '請選擇有效的班級（3A–6D）。');
       return;
     }
     if (!Number.isFinite(weight) || weight <= 0) {
       showFeedback('error', '哎呀！', '請輸入大於 0 的剩食重量（公斤）。');
+      return;
+    }
+    if (!isSchoolDay(today)) {
+      showFeedback(
+        'error',
+        '今天不用登記',
+        '今天不是校曆上的循環日（D1–D6），不用登記午餐剩食喔！請在有 D 日的上學日再來登記。📅'
+      );
       return;
     }
 
@@ -498,11 +555,13 @@
       });
 
       if (!data.ok) {
-        showFeedback(
-          'error',
-          data.error === 'duplicate' ? '已經登記過啦！' : '無法送出',
-          data.message || '請稍後再試。'
-        );
+        const title =
+          data.error === 'duplicate'
+            ? '已經登記過啦！'
+            : data.error === 'not_school_day'
+              ? '今天不用登記'
+              : '無法送出';
+        showFeedback('error', title, data.message || '請稍後再試。');
         return;
       }
 
@@ -557,8 +616,7 @@
   function init() {
     fillClassOptions();
     const today = hkToday();
-    el.todayDate.textContent = today;
-    el.headerDate.textContent = today + '（香港）';
+    showCycleDay(today);
 
     if (USE_MOCK) {
       el.mockBanner.classList.add('visible');

@@ -5,20 +5,41 @@
  * 試算表欄位：date | class | weight_kg | timestamp
  *
  * 前端以 POST + text/plain JSON body 呼叫（避免 CORS preflight）：
- *   { "action": "submit", "class": "P1A", "weight_kg": 1.2, "date": "2026-09-28" }
+ *   { "action": "submit", "class": "P3A", "weight_kg": 1.2, "date": "2026-09-28" }
  *   { "action": "stats",  "date": "2026-09-28" }
  *
  * 亦支援 doGet?action=stats&date=YYYY-MM-DD 讀取統計。
  *
- * 「上學日」定義：本月 1 日至今日（含）的所有日曆天（Asia/Hong_Kong），
- * 不做假日排除。用於計算 mostMissed（最常漏登記的班級）。
+ * 「上學日／登記日」定義：來自校曆 D1–D6 循環日清單（school-days-2026-27.json，
+ * 共 163 天）。mostMissed 只計算本月 1 日至今日（含，Asia/Hong_Kong）之間的 D 日。
+ * 班級僅接受 P3A–P6D（舊試算表列不刪除）。
  */
 
 var SHEET_NAME = '紀錄';
 var HEADERS = ['date', 'class', 'weight_kg', 'timestamp'];
-var GRADES = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6'];
+var GRADES = ['P3', 'P4', 'P5', 'P6'];
 var SECTIONS = ['A', 'B', 'C', 'D'];
 var TZ = 'Asia/Hong_Kong';
+
+/** 2026–27 校曆循環日（D1–D6），自 school-days-2026-27.json 嵌入 */
+var SCHOOL_DAYS = [{"date":"2026-09-04","day":"D1"},{"date":"2026-09-07","day":"D2"},{"date":"2026-09-08","day":"D3"},{"date":"2026-09-09","day":"D4"},{"date":"2026-09-10","day":"D5"},{"date":"2026-09-11","day":"D6"},{"date":"2026-09-15","day":"D1"},{"date":"2026-09-16","day":"D2"},{"date":"2026-09-17","day":"D3"},{"date":"2026-09-18","day":"D4"},{"date":"2026-09-21","day":"D5"},{"date":"2026-09-22","day":"D6"},{"date":"2026-09-23","day":"D1"},{"date":"2026-09-24","day":"D2"},{"date":"2026-09-25","day":"D3"},{"date":"2026-09-28","day":"D4"},{"date":"2026-09-29","day":"D5"},{"date":"2026-09-30","day":"D6"},{"date":"2026-10-02","day":"D1"},{"date":"2026-10-05","day":"D2"},{"date":"2026-10-06","day":"D3"},{"date":"2026-10-07","day":"D4"},{"date":"2026-10-08","day":"D5"},{"date":"2026-10-09","day":"D6"},{"date":"2026-10-12","day":"D1"},{"date":"2026-10-13","day":"D2"},{"date":"2026-10-14","day":"D3"},{"date":"2026-10-15","day":"D4"},{"date":"2026-10-20","day":"D5"},{"date":"2026-10-21","day":"D6"},{"date":"2026-10-22","day":"D1"},{"date":"2026-10-23","day":"D2"},{"date":"2026-10-26","day":"D3"},{"date":"2026-10-27","day":"D4"},{"date":"2026-10-28","day":"D5"},{"date":"2026-10-29","day":"D6"},{"date":"2026-10-30","day":"D1"},{"date":"2026-11-02","day":"D2"},{"date":"2026-11-03","day":"D3"},{"date":"2026-11-04","day":"D4"},{"date":"2026-11-05","day":"D5"},{"date":"2026-11-06","day":"D6"},{"date":"2026-11-09","day":"D1"},{"date":"2026-11-10","day":"D2"},{"date":"2026-11-11","day":"D3"},{"date":"2026-11-13","day":"D4"},{"date":"2026-11-17","day":"D5"},{"date":"2026-11-18","day":"D6"},{"date":"2026-11-19","day":"D1"},{"date":"2026-11-23","day":"D2"},{"date":"2026-11-24","day":"D3"},{"date":"2026-11-25","day":"D4"},{"date":"2026-11-26","day":"D5"},{"date":"2026-11-30","day":"D6"},{"date":"2026-12-01","day":"D1"},{"date":"2026-12-02","day":"D2"},{"date":"2026-12-03","day":"D3"},{"date":"2026-12-04","day":"D4"},{"date":"2026-12-07","day":"D5"},{"date":"2026-12-08","day":"D6"},{"date":"2026-12-09","day":"D1"},{"date":"2026-12-10","day":"D2"},{"date":"2026-12-11","day":"D3"},{"date":"2026-12-14","day":"D4"},{"date":"2026-12-15","day":"D5"},{"date":"2026-12-16","day":"D6"},{"date":"2026-12-17","day":"D1"},{"date":"2026-12-18","day":"D2"},{"date":"2026-12-21","day":"D3"},{"date":"2027-01-04","day":"D4"},{"date":"2027-01-05","day":"D5"},{"date":"2027-01-06","day":"D6"},{"date":"2027-01-07","day":"D1"},{"date":"2027-01-08","day":"D2"},{"date":"2027-01-13","day":"D3"},{"date":"2027-01-14","day":"D4"},{"date":"2027-01-15","day":"D5"},{"date":"2027-01-18","day":"D6"},{"date":"2027-01-19","day":"D1"},{"date":"2027-01-20","day":"D2"},{"date":"2027-01-21","day":"D3"},{"date":"2027-01-22","day":"D4"},{"date":"2027-01-25","day":"D5"},{"date":"2027-01-26","day":"D6"},{"date":"2027-01-27","day":"D1"},{"date":"2027-01-28","day":"D2"},{"date":"2027-02-01","day":"D3"},{"date":"2027-02-02","day":"D4"},{"date":"2027-02-15","day":"D5"},{"date":"2027-02-16","day":"D6"},{"date":"2027-02-17","day":"D1"},{"date":"2027-02-18","day":"D2"},{"date":"2027-02-22","day":"D3"},{"date":"2027-02-23","day":"D4"},{"date":"2027-02-24","day":"D5"},{"date":"2027-02-25","day":"D6"},{"date":"2027-02-26","day":"D1"},{"date":"2027-03-01","day":"D2"},{"date":"2027-03-02","day":"D3"},{"date":"2027-03-03","day":"D4"},{"date":"2027-03-15","day":"D5"},{"date":"2027-03-16","day":"D6"},{"date":"2027-03-17","day":"D1"},{"date":"2027-03-18","day":"D2"},{"date":"2027-03-19","day":"D3"},{"date":"2027-03-22","day":"D4"},{"date":"2027-03-23","day":"D5"},{"date":"2027-03-24","day":"D6"},{"date":"2027-03-25","day":"D1"},{"date":"2027-04-07","day":"D2"},{"date":"2027-04-08","day":"D3"},{"date":"2027-04-09","day":"D4"},{"date":"2027-04-12","day":"D5"},{"date":"2027-04-13","day":"D6"},{"date":"2027-04-14","day":"D1"},{"date":"2027-04-15","day":"D2"},{"date":"2027-04-16","day":"D3"},{"date":"2027-04-19","day":"D4"},{"date":"2027-04-20","day":"D5"},{"date":"2027-04-21","day":"D6"},{"date":"2027-04-22","day":"D1"},{"date":"2027-04-26","day":"D2"},{"date":"2027-04-27","day":"D3"},{"date":"2027-04-28","day":"D4"},{"date":"2027-04-29","day":"D5"},{"date":"2027-04-30","day":"D6"},{"date":"2027-05-03","day":"D1"},{"date":"2027-05-04","day":"D2"},{"date":"2027-05-05","day":"D3"},{"date":"2027-05-06","day":"D4"},{"date":"2027-05-11","day":"D5"},{"date":"2027-05-12","day":"D6"},{"date":"2027-05-14","day":"D1"},{"date":"2027-05-17","day":"D2"},{"date":"2027-05-18","day":"D3"},{"date":"2027-05-19","day":"D4"},{"date":"2027-05-20","day":"D5"},{"date":"2027-05-21","day":"D6"},{"date":"2027-05-24","day":"D1"},{"date":"2027-05-25","day":"D2"},{"date":"2027-05-26","day":"D3"},{"date":"2027-05-27","day":"D4"},{"date":"2027-05-28","day":"D5"},{"date":"2027-05-31","day":"D6"},{"date":"2027-06-01","day":"D1"},{"date":"2027-06-02","day":"D2"},{"date":"2027-06-10","day":"D3"},{"date":"2027-06-11","day":"D4"},{"date":"2027-06-14","day":"D5"},{"date":"2027-06-15","day":"D6"},{"date":"2027-06-16","day":"D1"},{"date":"2027-06-17","day":"D2"},{"date":"2027-06-18","day":"D3"},{"date":"2027-06-21","day":"D4"},{"date":"2027-06-22","day":"D5"},{"date":"2027-06-23","day":"D6"},{"date":"2027-06-24","day":"D1"},{"date":"2027-06-28","day":"D2"},{"date":"2027-06-29","day":"D3"},{"date":"2027-06-30","day":"D4"},{"date":"2027-07-05","day":"D5"},{"date":"2027-07-06","day":"D6"},{"date":"2027-07-07","day":"D1"}];
+
+function schoolDayMap_() {
+  var map = {};
+  for (var i = 0; i < SCHOOL_DAYS.length; i++) {
+    map[SCHOOL_DAYS[i].date] = SCHOOL_DAYS[i].day;
+  }
+  return map;
+}
+
+function cycleDayFor_(dateStr) {
+  var map = schoolDayMap_();
+  return map[dateStr] || null;
+}
+
+function isSchoolDay_(dateStr) {
+  return !!cycleDayFor_(dateStr);
+}
 
 function validClasses_() {
   var list = [];
@@ -98,27 +119,28 @@ function normalizeDate_(v) {
     return Utilities.formatDate(v, TZ, 'yyyy-MM-dd');
   }
   var s = String(v).trim();
-  // already YYYY-MM-DD
   if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.substring(0, 10);
   return s;
 }
 
+/**
+ * 本月 1 日至 asOfDate（含）之間的校曆 D1–D6 日期清單。
+ */
 function schoolDayList_(asOfDate) {
-  var parts = String(asOfDate).split('-');
-  var y = parts[0];
-  var m = parts[1];
-  var d = Number(parts[2]);
+  var ym = String(asOfDate).substring(0, 7);
   var list = [];
-  for (var day = 1; day <= d; day++) {
-    var dd = day < 10 ? '0' + day : String(day);
-    list.push(y + '-' + m + '-' + dd);
+  for (var i = 0; i < SCHOOL_DAYS.length; i++) {
+    var d = SCHOOL_DAYS[i].date;
+    if (d.indexOf(ym) === 0 && d <= asOfDate) {
+      list.push(d);
+    }
   }
   return list;
 }
 
 /**
  * 本月最常漏登記的班級。
- * missedDays = 上學日中沒有該班紀錄的天數；平手則全部列入 classes，class 取第一名。
+ * missedDays = 本月 D1–D6 上學日中沒有該班紀錄的天數；平手則全部列入 classes。
  */
 function computeMostMissed_(rows, asOfDate) {
   var ym = String(asOfDate).substring(0, 7);
@@ -126,7 +148,10 @@ function computeMostMissed_(rows, asOfDate) {
   var totalDays = days.length;
   var classes = validClasses_();
 
-  // submitted[class][date] = true
+  if (totalDays === 0) {
+    return { class: null, classes: [], missedDays: 0, totalDays: 0 };
+  }
+
   var submitted = {};
   for (var i = 0; i < rows.length; i++) {
     var r = rows[i];
@@ -161,9 +186,6 @@ function computeMostMissed_(rows, asOfDate) {
   };
 }
 
-/**
- * 本月平均剩食最高的班級（至少有一筆紀錄）。平手則全部列入 classes。
- */
 function computeHighestAvg_(rows, ym) {
   var classes = validClasses_();
   var bestAvg = null;
@@ -273,7 +295,7 @@ function handleSubmit_(body) {
     return jsonOut_({
       ok: false,
       error: 'invalid_class',
-      message: '請選擇有效的班級（P1A–P6D）。',
+      message: '請選擇有效的班級（3A–6D）。',
     });
   }
   if (!isFinite(weight) || weight <= 0) {
@@ -285,6 +307,16 @@ function handleSubmit_(body) {
   }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
     dateStr = hkToday_();
+  }
+
+  var cycleDay = cycleDayFor_(dateStr);
+  if (!cycleDay) {
+    return jsonOut_({
+      ok: false,
+      error: 'not_school_day',
+      message: '今天不是校曆上的循環日（D1–D6），不用登記午餐剩食喔！請在有 D 日的上學日再來登記。📅',
+      cycleDay: null,
+    });
   }
 
   var sheet = getOrCreateSheet_();
@@ -303,7 +335,6 @@ function handleSubmit_(body) {
   var ts = Utilities.formatDate(new Date(), TZ, "yyyy-MM-dd'T'HH:mm:ss");
   sheet.appendRow([dateStr, className, weight, ts]);
 
-  // refresh rows after append
   rows.push({ date: dateStr, class: className, weight_kg: weight, timestamp: ts });
   var ym = dateStr.substring(0, 7);
   var avgInfo = classMonthAvg_(rows, className, ym);
@@ -326,6 +357,7 @@ function handleSubmit_(body) {
     mostMissed: mostMissed,
     highestAvg: highestAvg,
     month: ym,
+    cycleDay: cycleDay,
   });
 }
 
@@ -346,6 +378,7 @@ function handleStats_(body) {
     mostMissed: mostMissed,
     highestAvg: highestAvg,
     month: ym,
+    cycleDay: cycleDayFor_(dateStr),
   });
 }
 
@@ -358,9 +391,6 @@ function parseBody_(e) {
   }
 }
 
-/**
- * POST：submit / stats
- */
 function doPost(e) {
   try {
     var body = parseBody_(e);
@@ -381,10 +411,6 @@ function doPost(e) {
   }
 }
 
-/**
- * GET：方便瀏覽器測試統計
- * ?action=stats&date=YYYY-MM-DD
- */
 function doGet(e) {
   try {
     var p = (e && e.parameter) || {};

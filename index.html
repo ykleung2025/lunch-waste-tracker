@@ -15,7 +15,8 @@
       <p class="subtitle">一起惜食，讓地球更健康！</p>
       <div class="badge-row">
         <span class="badge">📅 <span id="header-date">—</span></span>
-        <span class="badge">🏫 P1A–P6D</span>
+        <span class="badge" id="cycle-day-badge" hidden>—</span>
+        <span class="badge">🏫 3A–6D</span>
       </div>
     </header>
 
@@ -29,14 +30,14 @@
         <h2 id="form-title"><span class="emoji">✏️</span> 登記今日剩食</h2>
         <form id="waste-form" class="form-grid" novalidate>
           <div>
-            <label for="class-select">班級 <span class="hint">（必選）</span></label>
+            <label for="class-select">班級 <span class="hint">（必選，3A–6D）</span></label>
             <select id="class-select" name="class" required>
               <option value="">— 請選擇班級 —</option>
             </select>
           </div>
 
           <div>
-            <label>今日日期 <span class="hint">（自動，香港時間）</span></label>
+            <label>今日日期 <span class="hint">（自動，香港時間；僅 D1–D6 可登記）</span></label>
             <div class="date-display" id="today-display" aria-live="polite">
               <span>📆</span>
               <span id="today-date">—</span>
@@ -78,7 +79,7 @@
       <section class="card" aria-labelledby="extra-stats-title">
         <h2 id="extra-stats-title"><span class="emoji">📊</span> 本月特別統計</h2>
         <p class="hint" style="margin: -0.5rem 0 1rem">
-          統計範圍為本月 1 日至今日（香港時間，含今日）。上學日 = 日曆天，不做假日排除。
+          統計範圍：本月 1 日至今日（香港時間）。「最常漏登記」只計算校曆 D1–D6 循環日（見 school-days-2026-27.json）。
         </p>
         <div class="extra-stats-grid">
           <div class="stat-tile stat-missed" id="most-missed-card">
@@ -98,7 +99,7 @@
       <section class="card" aria-labelledby="dash-title">
         <h2 id="dash-title"><span class="emoji">🏆</span> 本月年級惜食榜</h2>
         <p class="hint" style="margin: -0.5rem 0 1rem">
-          顯示各年級「總剩食最少」與「平均剩食最少」的班級（本月累計）。
+          顯示小三至小六各年級「總剩食最少」與「平均剩食最少」的班級（本月累計）。
         </p>
         <div class="actions" style="margin-bottom: 0.85rem">
           <button type="button" class="btn btn-secondary" id="refresh-btn">
