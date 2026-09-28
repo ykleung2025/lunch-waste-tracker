@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="校園午餐剩食追蹤 — 一起減少食物浪費！" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>午餐剩食追蹤｜一起惜食</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="wrap">
+    <header class="site-header">
+      <h1>🥗 午餐剩食追蹤</h1>
+      <p class="subtitle">一起惜食，讓地球更健康！</p>
+      <div class="badge-row">
+        <span class="badge">📅 <span id="header-date">—</span></span>
+        <span class="badge">🏫 P1A–P6D</span>
+      </div>
+    </header>
+
+    <div id="mock-banner" class="mock-banner" role="status">
+      🧪 目前為<strong>示範模式</strong>（資料存在本機瀏覽器）。正式使用請在 config.js 關閉 USE_MOCK 並填入 Apps Script 網址。
+    </div>
+
+    <main>
+      <!-- 登記表單 -->
+      <section class="card" aria-labelledby="form-title">
+        <h2 id="form-title"><span class="emoji">✏️</span> 登記今日剩食</h2>
+        <form id="waste-form" class="form-grid" novalidate>
+          <div>
+            <label for="class-select">班級 <span class="hint">（必選）</span></label>
+            <select id="class-select" name="class" required>
+              <option value="">— 請選擇班級 —</option>
+            </select>
+          </div>
+
+          <div>
+            <label>今日日期 <span class="hint">（自動，香港時間）</span></label>
+            <div class="date-display" id="today-display" aria-live="polite">
+              <span>📆</span>
+              <span id="today-date">—</span>
+            </div>
+          </div>
+
+          <div>
+            <label for="weight-input">
+              今日剩食重量（公斤 kg）
+              <span class="hint">（大於 0）</span>
+            </label>
+            <input
+              id="weight-input"
+              name="weight"
+              type="number"
+              inputmode="decimal"
+              min="0.01"
+              step="0.01"
+              placeholder="例如：1.25"
+              required
+            />
+          </div>
+
+          <div class="actions">
+            <button type="submit" class="btn btn-primary" id="submit-btn">
+              送出登記
+            </button>
+          </div>
+        </form>
+
+        <div id="feedback" class="feedback" role="status" aria-live="polite">
+          <p class="title" id="feedback-title"></p>
+          <p class="msg" id="feedback-msg"></p>
+          <div class="stats-line" id="feedback-stats" hidden></div>
+        </div>
+      </section>
+
+      <!-- 年級排行榜 -->
+      <section class="card" aria-labelledby="dash-title">
+        <h2 id="dash-title"><span class="emoji">🏆</span> 本月年級惜食榜</h2>
+        <p class="hint" style="margin: -0.5rem 0 1rem">
+          顯示各年級「總剩食最少」與「平均剩食最少」的班級（本月累計）。
+        </p>
+        <div class="actions" style="margin-bottom: 0.85rem">
+          <button type="button" class="btn btn-secondary" id="refresh-btn">
+            🔄 重新整理榜單
+          </button>
+        </div>
+        <div class="leaderboard" id="leaderboard">
+          <p class="empty-state" id="lb-empty">載入中…</p>
+          <table id="lb-table" hidden>
+            <thead>
+              <tr>
+                <th>年級</th>
+                <th>總量最少 🥇</th>
+                <th>總量 (kg)</th>
+                <th>平均最少 ⭐</th>
+                <th>平均 (kg)</th>
+              </tr>
+            </thead>
+            <tbody id="lb-body"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <p class="footer-note">
+      無廣告 · 無追蹤 · 純靜態頁面 · 資料存於 Google 試算表（或本機示範）
+    </p>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
