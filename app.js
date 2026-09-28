@@ -89,11 +89,16 @@
   }
 
   // ——— UI helpers ———
+  function displayClassName(classCode) {
+    const value = String(classCode || '');
+    return /^P\d[A-D]$/.test(value) ? value.slice(1) : value;
+  }
+
   function fillClassOptions() {
     CLASSES.forEach((c) => {
       const opt = document.createElement('option');
       opt.value = c;
-      opt.textContent = c;
+      opt.textContent = displayClassName(c);
       el.classSelect.appendChild(opt);
     });
   }
@@ -335,9 +340,9 @@
     if (!info) return '—';
     const list =
       Array.isArray(info.classes) && info.classes.length
-        ? info.classes
+        ? info.classes.map(displayClassName)
         : info.class
-          ? [info.class]
+          ? [displayClassName(info.class)]
           : [];
     return list.length ? list.join('、') : '—';
   }
@@ -395,9 +400,9 @@
       const la = info.lowestAvg;
       return {
         grade: g,
-        totalClass: lt ? lt.class : '—',
+        totalClass: lt ? displayClassName(lt.class) : '—',
         totalVal: lt ? lt.total.toFixed(2) : '—',
-        avgClass: la ? la.class : '—',
+        avgClass: la ? displayClassName(la.class) : '—',
         avgVal: la ? la.avg.toFixed(2) : '—',
       };
     });
@@ -520,7 +525,7 @@
         title,
         data.message,
         '<strong>' +
-          className +
+          displayClassName(className) +
           '</strong> 今日：<strong>' +
           Number(data.todayWeight).toFixed(2) +
           ' kg</strong><br>' +
