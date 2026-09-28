@@ -12,10 +12,10 @@
  */
 window.LUNCH_WASTE_CONFIG = {
   // 部署後的 Google Apps Script 網頁應用程式 URL（請替換）
-  SCRIPT_URL: 'YOUR_APPS_SCRIPT_WEB_APP_URL_HERE',
+  SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbw6A9qVaF96E8ulxE51TcYcD7zG_7fkX5gxBRU-TaCcdAs2BSFkkGAmWlOaSJWl0pJ7/exec',
 
   // true = 使用 localStorage 模擬，無需後端；false = 呼叫 SCRIPT_URL
-  USE_MOCK: true,
+  USE_MOCK: false,
 
   // 時區標籤（顯示用；實際日期由程式以 Asia/Hong_Kong 計算）
   TIMEZONE: 'Asia/Hong_Kong',

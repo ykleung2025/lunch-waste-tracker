@@ -11,7 +11,7 @@
  * 亦支援 doGet?action=stats&date=YYYY-MM-DD 讀取統計。
  */
 
-var SHEET_NAME = 'Records';
+var SHEET_NAME = '紀錄';
 var HEADERS = ['date', 'class', 'weight_kg', 'timestamp'];
 var GRADES = ['P1', 'P2', 'P3', 'P4', 'P5', 'P6'];
 var SECTIONS = ['A', 'B', 'C', 'D'];
