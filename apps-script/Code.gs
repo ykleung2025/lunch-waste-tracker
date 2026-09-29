@@ -12,6 +12,7 @@
  *
  * 「上學日／登記日」定義：來自校曆 D1–D6 循環日清單（school-days-2026-27.json，
  * 共 163 天）。mostMissed 只計算本月 1 日至今日（含，Asia/Hong_Kong）之間的 D 日。
+ * 另回傳 todayMissing、lastMonth*、twoMonthAvgs。
  * 班級僅接受 P3A–P6D（舊試算表列不刪除）。
  */
 
@@ -221,6 +222,121 @@ function computeHighestAvg_(rows, ym) {
   };
 }
 
+
+/**
+ * 上一個日曆月 YYYY-MM（相對目前 ym）。
+ */
+function prevMonth_(ym) {
+  var y = parseInt(String(ym).substring(0, 4), 10);
+  var m = parseInt(String(ym).substring(5, 7), 10);
+  if (m === 1) {
+    y--;
+    m = 12;
+  } else {
+    m--;
+  }
+  return y + '-' + (m < 10 ? '0' : '') + m;
+}
+
+/**
+ * 該月最後一天 YYYY-MM-DD。
+ */
+function lastDayOfMonth_(ym) {
+  var y = parseInt(String(ym).substring(0, 4), 10);
+  var m = parseInt(String(ym).substring(5, 7), 10);
+  var last = new Date(y, m, 0); // JS：月份 0-based，day 0 = 上月最後一天
+  var day = last.getDate();
+  return String(ym) + '-' + (day < 10 ? '0' : '') + day;
+}
+
+/**
+ * 今日尚未登記的班級（僅 D1–D6 日有意義）。
+ * 回傳 { isSchoolDay, cycleDay, missing, submitted }
+ */
+function computeTodayMissing_(rows, today) {
+  var cycleDay = cycleDayFor_(today);
+  var classes = validClasses_();
+  if (!cycleDay) {
+    return { isSchoolDay: false, cycleDay: null, missing: [], submitted: [] };
+  }
+  var submittedMap = {};
+  for (var i = 0; i < rows.length; i++) {
+    if (rows[i].date === today) {
+      submittedMap[rows[i].class] = true;
+    }
+  }
+  var missing = [];
+  var submitted = [];
+  for (var c = 0; c < classes.length; c++) {
+    var cls = classes[c];
+    if (submittedMap[cls]) {
+      submitted.push(cls);
+    } else {
+      missing.push(cls);
+    }
+  }
+  return {
+    isSchoolDay: true,
+    cycleDay: cycleDay,
+    missing: missing,
+    submitted: submitted,
+  };
+}
+
+/**
+ * 近兩個月（上月＋本月）各班平均剩食。
+ * 回傳 { months: [prev, current], byClass: { P3A: [null|num, null|num], ... } }
+ */
+function computeTwoMonthAvgs_(rows, currentYm) {
+  var prevYm = prevMonth_(currentYm);
+  var months = [prevYm, currentYm];
+  var classes = validClasses_();
+  var byClass = {};
+  for (var c = 0; c < classes.length; c++) {
+    var cls = classes[c];
+    var avgs = [];
+    for (var mi = 0; mi < months.length; mi++) {
+      var ym = months[mi];
+      var weights = [];
+      for (var i = 0; i < rows.length; i++) {
+        if (rows[i].class === cls && String(rows[i].date).indexOf(ym) === 0) {
+          weights.push(Number(rows[i].weight_kg));
+        }
+      }
+      if (weights.length === 0) {
+        avgs.push(null);
+      } else {
+        var sum = 0;
+        for (var j = 0; j < weights.length; j++) sum += weights[j];
+        avgs.push(round2_(sum / weights.length));
+      }
+    }
+    byClass[cls] = avgs;
+  }
+  return { months: months, byClass: byClass };
+}
+
+/**
+ * 彙總 stats 共用欄位（本月＋上月＋今日漏登＋兩月平均）。
+ */
+function buildStatsPayload_(rows, dateStr) {
+  var ym = String(dateStr).substring(0, 7);
+  var lastYm = prevMonth_(ym);
+  var lastAsOf = lastDayOfMonth_(lastYm);
+  return {
+    gradeMins: computeGradeMins_(rows, ym),
+    mostMissed: computeMostMissed_(rows, dateStr),
+    highestAvg: computeHighestAvg_(rows, ym),
+    month: ym,
+    cycleDay: cycleDayFor_(dateStr),
+    todayMissing: computeTodayMissing_(rows, dateStr),
+    lastMonth: lastYm,
+    lastMonthMostMissed: computeMostMissed_(rows, lastAsOf),
+    lastMonthHighestAvg: computeHighestAvg_(rows, lastYm),
+    twoMonthAvgs: computeTwoMonthAvgs_(rows, ym),
+  };
+}
+
 function computeGradeMins_(rows, ym) {
   var gradeMins = {};
   for (var g = 0; g < GRADES.length; g++) {
@@ -342,9 +458,7 @@ function handleSubmit_(body) {
   var above = monthlyAvg !== null && weight > monthlyAvg;
   var comparison = above ? 'above' : (weight < monthlyAvg ? 'below' : 'equal');
   var message = above ? pick_(ENCOURAGE) : pick_(PRAISE);
-  var gradeMins = computeGradeMins_(rows, ym);
-  var mostMissed = computeMostMissed_(rows, dateStr);
-  var highestAvg = computeHighestAvg_(rows, ym);
+  var stats = buildStatsPayload_(rows, dateStr);
 
   return jsonOut_({
     ok: true,
@@ -353,11 +467,16 @@ function handleSubmit_(body) {
     sampleCount: avgInfo.count,
     comparison: comparison,
     message: message,
-    gradeMins: gradeMins,
-    mostMissed: mostMissed,
-    highestAvg: highestAvg,
-    month: ym,
+    gradeMins: stats.gradeMins,
+    mostMissed: stats.mostMissed,
+    highestAvg: stats.highestAvg,
+    month: stats.month,
     cycleDay: cycleDay,
+    todayMissing: stats.todayMissing,
+    lastMonth: stats.lastMonth,
+    lastMonthMostMissed: stats.lastMonthMostMissed,
+    lastMonthHighestAvg: stats.lastMonthHighestAvg,
+    twoMonthAvgs: stats.twoMonthAvgs,
   });
 }
 
@@ -366,19 +485,21 @@ function handleStats_(body) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
     dateStr = hkToday_();
   }
-  var ym = dateStr.substring(0, 7);
   var sheet = getOrCreateSheet_();
   var rows = readAllRows_(sheet);
-  var gradeMins = computeGradeMins_(rows, ym);
-  var mostMissed = computeMostMissed_(rows, dateStr);
-  var highestAvg = computeHighestAvg_(rows, ym);
+  var stats = buildStatsPayload_(rows, dateStr);
   return jsonOut_({
     ok: true,
-    gradeMins: gradeMins,
-    mostMissed: mostMissed,
-    highestAvg: highestAvg,
-    month: ym,
-    cycleDay: cycleDayFor_(dateStr),
+    gradeMins: stats.gradeMins,
+    mostMissed: stats.mostMissed,
+    highestAvg: stats.highestAvg,
+    month: stats.month,
+    cycleDay: stats.cycleDay,
+    todayMissing: stats.todayMissing,
+    lastMonth: stats.lastMonth,
+    lastMonthMostMissed: stats.lastMonthMostMissed,
+    lastMonthHighestAvg: stats.lastMonthHighestAvg,
+    twoMonthAvgs: stats.twoMonthAvgs,
   });
 }
 

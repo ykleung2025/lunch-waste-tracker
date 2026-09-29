@@ -95,6 +95,47 @@
         </div>
       </section>
 
+      <!-- 今日尚未登記 -->
+      <section class="card" aria-labelledby="today-missing-title">
+        <h2 id="today-missing-title"><span class="emoji">🔔</span> 今日尚未登記</h2>
+        <p class="hint" style="margin: -0.5rem 0 1rem">
+          僅在校曆 D1–D6 循環日顯示尚未送出的班級（3A–6D）。非循環日無需登記。
+        </p>
+        <p id="today-missing-status" class="today-missing-status">載入中…</p>
+        <div id="today-missing-list" class="today-missing-list" hidden></div>
+      </section>
+
+      <!-- 上月特別統計 -->
+      <section class="card" aria-labelledby="last-month-stats-title">
+        <h2 id="last-month-stats-title"><span class="emoji">📅</span> 上月特別統計</h2>
+        <p class="hint" style="margin: -0.5rem 0 1rem">
+          統計範圍：上一個日曆月（<span id="last-month-label">—</span>）全部循環日。「最常漏登記」只計算該月 D1–D6。
+        </p>
+        <div class="extra-stats-grid">
+          <div class="stat-tile stat-missed" id="last-most-missed-card">
+            <div class="stat-tile-label">⏰ 上月最常漏登記</div>
+            <div class="stat-tile-value" id="last-most-missed-value">—</div>
+            <div class="stat-tile-detail" id="last-most-missed-detail">載入中…</div>
+          </div>
+          <div class="stat-tile stat-high-avg" id="last-highest-avg-card">
+            <div class="stat-tile-label">📈 上月平均剩食最高</div>
+            <div class="stat-tile-value" id="last-highest-avg-value">—</div>
+            <div class="stat-tile-detail" id="last-highest-avg-detail">載入中…</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 近兩月平均柱狀圖 -->
+      <section class="card" aria-labelledby="chart-title">
+        <h2 id="chart-title"><span class="emoji">📉</span> 近兩月各班平均剩食</h2>
+        <p class="hint" style="margin: -0.5rem 0 1rem">
+          比較上月與本月各班（3A–6D）平均剩食重量（公斤）。無資料的月份顯示「—」。
+        </p>
+        <div id="chart-legend" class="chart-legend" aria-hidden="false"></div>
+        <p class="empty-state" id="chart-empty">載入中…</p>
+        <div id="chart-body" class="chart-body" role="img" aria-label="近兩月各班平均剩食柱狀圖"></div>
+      </section>
+
       <!-- 年級排行榜 -->
       <section class="card" aria-labelledby="dash-title">
         <h2 id="dash-title"><span class="emoji">🏆</span> 本月年級惜食榜</h2>

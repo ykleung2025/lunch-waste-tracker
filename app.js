@@ -47,6 +47,16 @@
     mostMissedDetail: document.getElementById('most-missed-detail'),
     highestAvgValue: document.getElementById('highest-avg-value'),
     highestAvgDetail: document.getElementById('highest-avg-detail'),
+    todayMissingStatus: document.getElementById('today-missing-status'),
+    todayMissingList: document.getElementById('today-missing-list'),
+    lastMonthLabel: document.getElementById('last-month-label'),
+    lastMostMissedValue: document.getElementById('last-most-missed-value'),
+    lastMostMissedDetail: document.getElementById('last-most-missed-detail'),
+    lastHighestAvgValue: document.getElementById('last-highest-avg-value'),
+    lastHighestAvgDetail: document.getElementById('last-highest-avg-detail'),
+    chartLegend: document.getElementById('chart-legend'),
+    chartBody: document.getElementById('chart-body'),
+    chartEmpty: document.getElementById('chart-empty'),
   };
 
   // ——— 香港日期 YYYY-MM-DD ———
@@ -79,6 +89,71 @@
     return SCHOOL_DAYS
       .filter((entry) => entry.date.startsWith(ym) && entry.date <= asOfDate)
       .map((entry) => entry.date);
+  }
+
+
+  function prevMonth(ym) {
+    let y = Number(ym.slice(0, 4));
+    let m = Number(ym.slice(5, 7));
+    if (m === 1) {
+      y -= 1;
+      m = 12;
+    } else {
+      m -= 1;
+    }
+    return y + '-' + String(m).padStart(2, '0');
+  }
+
+  function lastDayOfMonth(ym) {
+    const y = Number(ym.slice(0, 4));
+    const m = Number(ym.slice(5, 7));
+    const last = new Date(y, m, 0);
+    return ym + '-' + String(last.getDate()).padStart(2, '0');
+  }
+
+  /**
+   * 今日尚未登記的班級（僅 D1–D6 日有意義）。
+   */
+  function computeTodayMissing(rows, today) {
+    const day = cycleDayFor(today);
+    if (!day) {
+      return { isSchoolDay: false, cycleDay: null, missing: [], submitted: [] };
+    }
+    const submittedMap = {};
+    rows.forEach((r) => {
+      if (r.date === today) submittedMap[r.class] = true;
+    });
+    const missing = [];
+    const submitted = [];
+    CLASSES.forEach((cls) => {
+      if (submittedMap[cls]) submitted.push(cls);
+      else missing.push(cls);
+    });
+    return {
+      isSchoolDay: true,
+      cycleDay: day,
+      missing,
+      submitted,
+    };
+  }
+
+  /**
+   * 近兩個月（上月＋本月）各班平均剩食。
+   */
+  function computeTwoMonthAvgs(rows, currentYm) {
+    const prevYm = prevMonth(currentYm);
+    const months = [prevYm, currentYm];
+    const byClass = {};
+    CLASSES.forEach((cls) => {
+      byClass[cls] = months.map((ym) => {
+        const weights = rows
+          .filter((r) => r.class === cls && String(r.date).startsWith(ym))
+          .map((r) => Number(r.weight_kg));
+        if (weights.length === 0) return null;
+        return round2(weights.reduce((a, b) => a + b, 0) / weights.length);
+      });
+    });
+    return { months, byClass };
   }
 
   // ——— 鼓勵／讚美文案 ———
@@ -280,6 +355,8 @@
       gradeMins[g] = { lowestTotal: bestTotal, lowestAvg: bestAvg };
     });
 
+    const lastYm = prevMonth(ym);
+    const lastAsOf = lastDayOfMonth(lastYm);
     return {
       monthlyAvg: monthlyAvg === null ? null : round2(monthlyAvg),
       sampleCount: weights.length,
@@ -288,6 +365,11 @@
       highestAvg: computeHighestAvg(rows, ym),
       month: ym,
       cycleDay: cycleDayFor(today),
+      todayMissing: computeTodayMissing(rows, today),
+      lastMonth: lastYm,
+      lastMonthMostMissed: computeMostMissed(rows, lastAsOf),
+      lastMonthHighestAvg: computeHighestAvg(rows, lastYm),
+      twoMonthAvgs: computeTwoMonthAvgs(rows, ym),
     };
   }
 
@@ -342,6 +424,11 @@
       highestAvg: stats.highestAvg,
       month: stats.month,
       cycleDay: stats.cycleDay,
+      todayMissing: stats.todayMissing,
+      lastMonth: stats.lastMonth,
+      lastMonthMostMissed: stats.lastMonthMostMissed,
+      lastMonthHighestAvg: stats.lastMonthHighestAvg,
+      twoMonthAvgs: stats.twoMonthAvgs,
     };
   }
 
@@ -355,6 +442,11 @@
       highestAvg: stats.highestAvg,
       month: stats.month,
       cycleDay: stats.cycleDay,
+      todayMissing: stats.todayMissing,
+      lastMonth: stats.lastMonth,
+      lastMonthMostMissed: stats.lastMonthMostMissed,
+      lastMonthHighestAvg: stats.lastMonthHighestAvg,
+      twoMonthAvgs: stats.twoMonthAvgs,
     };
   }
 
@@ -434,6 +526,194 @@
     }
   }
 
+
+  function renderTodayMissing(info) {
+    if (!el.todayMissingStatus) return;
+    if (!info || !info.isSchoolDay) {
+      el.todayMissingStatus.textContent =
+        '今天不是校曆循環日（D1–D6），無需登記午餐剩食。';
+      el.todayMissingStatus.className = 'today-missing-status is-off';
+      if (el.todayMissingList) {
+        el.todayMissingList.innerHTML = '';
+        el.todayMissingList.hidden = true;
+      }
+      return;
+    }
+    const missing = Array.isArray(info.missing) ? info.missing : [];
+    const dayLabel = info.cycleDay ? '（' + info.cycleDay + '）' : '';
+    if (missing.length === 0) {
+      el.todayMissingStatus.textContent =
+        '今日' + dayLabel + '所有班級（3A–6D）都已登記！🎉';
+      el.todayMissingStatus.className = 'today-missing-status is-ok';
+      if (el.todayMissingList) {
+        el.todayMissingList.innerHTML = '';
+        el.todayMissingList.hidden = true;
+      }
+      return;
+    }
+    el.todayMissingStatus.textContent =
+      '今日' + dayLabel + '尚未登記：共 ' + missing.length + ' 班';
+    el.todayMissingStatus.className = 'today-missing-status is-warn';
+    if (el.todayMissingList) {
+      el.todayMissingList.hidden = false;
+      el.todayMissingList.innerHTML = missing
+        .map(
+          (c) =>
+            '<span class="missing-chip">' + displayClassName(c) + '</span>'
+        )
+        .join('');
+    }
+  }
+
+  function renderLastMonthStats(mostMissed, highestAvg, lastMonth) {
+    if (el.lastMonthLabel) {
+      el.lastMonthLabel.textContent = lastMonth || '—';
+    }
+    if (el.lastMostMissedValue) {
+      if (!mostMissed || mostMissed.class == null || mostMissed.totalDays === 0) {
+        el.lastMostMissedValue.textContent = '—';
+        el.lastMostMissedDetail.textContent =
+          '上月（' + (lastMonth || '') + '）無循環日或尚無足夠資料。';
+      } else {
+        el.lastMostMissedValue.textContent = formatClassList(mostMissed);
+        el.lastMostMissedDetail.textContent =
+          '漏登記 ' +
+          mostMissed.missedDays +
+          ' 天／上月循環日共 ' +
+          mostMissed.totalDays +
+          ' 天' +
+          (Array.isArray(mostMissed.classes) && mostMissed.classes.length > 1
+            ? '（並列）'
+            : '');
+      }
+    }
+    if (el.lastHighestAvgValue) {
+      if (!highestAvg || highestAvg.class == null || highestAvg.avg == null) {
+        el.lastHighestAvgValue.textContent = '—';
+        el.lastHighestAvgDetail.textContent =
+          '上月（' + (lastMonth || '') + '）尚無登記資料。';
+      } else {
+        el.lastHighestAvgValue.textContent = formatClassList(highestAvg);
+        el.lastHighestAvgDetail.textContent =
+          '上月平均 ' +
+          Number(highestAvg.avg).toFixed(2) +
+          ' kg' +
+          (Array.isArray(highestAvg.classes) && highestAvg.classes.length > 1
+            ? '（並列）'
+            : '');
+      }
+    }
+  }
+
+  function renderTwoMonthChart(twoMonthAvgs) {
+    if (!el.chartBody) return;
+    if (
+      !twoMonthAvgs ||
+      !Array.isArray(twoMonthAvgs.months) ||
+      twoMonthAvgs.months.length < 2 ||
+      !twoMonthAvgs.byClass
+    ) {
+      if (el.chartEmpty) {
+        el.chartEmpty.hidden = false;
+        el.chartEmpty.textContent = '尚無近兩個月資料可繪製圖表。';
+      }
+      el.chartBody.innerHTML = '';
+      if (el.chartLegend) el.chartLegend.innerHTML = '';
+      return;
+    }
+
+    const months = twoMonthAvgs.months;
+    const byClass = twoMonthAvgs.byClass;
+    let maxVal = 0;
+    let hasAny = false;
+    CLASSES.forEach((cls) => {
+      const pair = byClass[cls] || [null, null];
+      pair.forEach((v) => {
+        if (v != null && Number.isFinite(Number(v))) {
+          hasAny = true;
+          if (Number(v) > maxVal) maxVal = Number(v);
+        }
+      });
+    });
+
+    if (el.chartLegend) {
+      el.chartLegend.innerHTML =
+        '<span class="chart-legend-item"><span class="chart-swatch swatch-prev"></span>' +
+        months[0] +
+        '（上月）</span>' +
+        '<span class="chart-legend-item"><span class="chart-swatch swatch-curr"></span>' +
+        months[1] +
+        '（本月）</span>';
+    }
+
+    if (!hasAny) {
+      if (el.chartEmpty) {
+        el.chartEmpty.hidden = false;
+        el.chartEmpty.textContent =
+          '近兩個月（' + months[0] + '、' + months[1] + '）尚無登記資料。';
+      }
+      el.chartBody.innerHTML = '';
+      return;
+    }
+
+    if (el.chartEmpty) el.chartEmpty.hidden = true;
+    const scale = maxVal > 0 ? maxVal : 1;
+
+    el.chartBody.innerHTML = CLASSES.map((cls) => {
+      const pair = byClass[cls] || [null, null];
+      const v0 = pair[0] == null ? null : Number(pair[0]);
+      const v1 = pair[1] == null ? null : Number(pair[1]);
+      const h0 = v0 == null ? 0 : Math.max(2, Math.round((v0 / scale) * 100));
+      const h1 = v1 == null ? 0 : Math.max(2, Math.round((v1 / scale) * 100));
+      const t0 =
+        v0 == null
+          ? '<span class="bar-val is-null">—</span>'
+          : '<span class="bar-val">' + v0.toFixed(2) + '</span>';
+      const t1 =
+        v1 == null
+          ? '<span class="bar-val is-null">—</span>'
+          : '<span class="bar-val">' + v1.toFixed(2) + '</span>';
+      return (
+        '<div class="chart-group" title="' +
+        displayClassName(cls) +
+        '">' +
+        '<div class="chart-bars">' +
+        '<div class="bar-col">' +
+        t0 +
+        '<div class="bar bar-prev' +
+        (v0 == null ? ' is-empty' : '') +
+        '" style="height:' +
+        (v0 == null ? 4 : h0) +
+        '%"></div>' +
+        '</div>' +
+        '<div class="bar-col">' +
+        t1 +
+        '<div class="bar bar-curr' +
+        (v1 == null ? ' is-empty' : '') +
+        '" style="height:' +
+        (v1 == null ? 4 : h1) +
+        '%"></div>' +
+        '</div>' +
+        '</div>' +
+        '<div class="chart-label">' +
+        displayClassName(cls) +
+        '</div>' +
+        '</div>'
+      );
+    }).join('');
+  }
+
+  function renderAllExtra(data) {
+    renderExtraStats(data && data.mostMissed, data && data.highestAvg, data && data.month);
+    renderTodayMissing(data && data.todayMissing);
+    renderLastMonthStats(
+      data && data.lastMonthMostMissed,
+      data && data.lastMonthHighestAvg,
+      data && data.lastMonth
+    );
+    renderTwoMonthChart(data && data.twoMonthAvgs);
+  }
+
   // ——— Leaderboard render ———
   function renderLeaderboard(gradeMins, month) {
     if (!gradeMins) {
@@ -503,18 +783,26 @@
       el.highestAvgValue.textContent = '…';
       el.highestAvgDetail.textContent = '載入中…';
     }
+    if (el.todayMissingStatus) {
+      el.todayMissingStatus.textContent = '載入中…';
+      el.todayMissingStatus.className = 'today-missing-status';
+    }
+    if (el.chartEmpty) {
+      el.chartEmpty.hidden = false;
+      el.chartEmpty.textContent = '載入中…';
+    }
     try {
       const data = await apiCall({ action: 'stats', date: hkToday() });
       if (!data.ok) {
         el.lbEmpty.textContent = data.message || '無法載入榜單';
-        renderExtraStats(null, null, data.month);
+        renderAllExtra(null);
         return;
       }
       renderLeaderboard(data.gradeMins, data.month);
-      renderExtraStats(data.mostMissed, data.highestAvg, data.month);
+      renderAllExtra(data);
     } catch (err) {
       el.lbEmpty.textContent = '載入失敗：' + (err.message || String(err));
-      renderExtraStats(null, null, null);
+      renderAllExtra(null);
     }
   }
 
@@ -601,7 +889,7 @@
       el.weightInput.value = '';
       if (data.gradeMins) {
         renderLeaderboard(data.gradeMins, data.month);
-        renderExtraStats(data.mostMissed, data.highestAvg, data.month);
+        renderAllExtra(data);
       } else {
         await loadStats();
       }

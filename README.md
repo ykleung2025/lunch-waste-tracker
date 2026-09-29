@@ -1,6 +1,6 @@
 # 🥗 午餐剩食追蹤（Lunch Waste Tracker）
 
-校園靜態網站：各班登記每日午餐剩食重量（公斤），查本月平均，顯示各年級「總量最少／平均最少」班級，以及本月「最常漏登記」與「平均剩食最高」班級。
+校園靜態網站：各班登記每日午餐剩食重量（公斤），查本月平均，顯示各年級「總量最少／平均最少」班級，以及本月／上月「最常漏登記」與「平均剩食最高」班級、今日尚未登記名單、近兩月各班平均柱狀圖。
 
 - 班級：`P3A`–`P6D`（介面顯示 **3A–6D**；小一／小二不開放新登記，舊試算表列不刪除）
 - 登記日：僅校曆 **D1–D6** 循環日（`school-days-2026-27.json`，163 天；已嵌入 `Code.gs` 與 `app.js`）
@@ -15,7 +15,7 @@
 
 | 檔案 | 說明 |
 |------|------|
-| `index.html` | 登記表單、回饋訊息、本月特別統計、年級榜 |
+| `index.html` | 登記表單、回饋訊息、本月／上月特別統計、今日漏登、近兩月圖表、年級榜 |
 | `styles.css` | 校園友善樣式（手機友善） |
 | `app.js` | 表單與 API 邏輯（含嵌入的 `SCHOOL_DAYS`） |
 | `config.js` | `SCRIPT_URL` 與 `USE_MOCK` 設定 |
@@ -98,7 +98,7 @@ window.LUNCH_WASTE_CONFIG = {
 | action | 說明 |
 |--------|------|
 | `submit` | 寫入一筆：date, class, weight_kg, timestamp；同班同日重複則回錯誤；非 D 日拒絕 |
-| `stats` | 回傳本月各年級最低總量／最低平均班級，以及 `mostMissed`、`highestAvg`、`cycleDay` |
+| `stats` | 回傳本月 `gradeMins`／`mostMissed`／`highestAvg`／`cycleDay`，以及 `todayMissing`、`lastMonth*`、`twoMonthAvgs` |
 
 - 日期以香港時區 `Asia/Hong_Kong`、格式 `YYYY-MM-DD`。
 - 班級必須為 `P3A`–`P6D`；重量必須 `> 0`。
@@ -118,6 +118,16 @@ window.LUNCH_WASTE_CONFIG = {
 **上學日／登記日定義**：以嵌入的校曆 D1–D6 清單為準。`mostMissed` 的 `totalDays` = 本月 1 日至今日（含，香港時區）之間的 D 日天數；某班某 D 日若無登記則計入該班的 `missedDays`。
 
 原有 `gradeMins` 欄位維持不變（僅含 P3–P6）。
+
+### 今日漏登／上月統計／近兩月平均
+
+| 欄位 | 說明 |
+|------|------|
+| `todayMissing` | `{ isSchoolDay, cycleDay, missing, submitted }`：今日尚未登記的班級代碼陣列（P3A–P6D）。非 D 日時 `isSchoolDay: false`，`missing` 為空。 |
+| `lastMonth` | 上一個日曆月標籤 `YYYY-MM`。 |
+| `lastMonthMostMissed` | 同上月全部 D 日計算的 `mostMissed`（形狀同 `mostMissed`）。 |
+| `lastMonthHighestAvg` | 同上月至少一筆紀錄的 `highestAvg`（形狀同 `highestAvg`）。 |
+| `twoMonthAvgs` | `{ months: [上月, 本月], byClass: { P3A: [null\|num, null\|num], … } }`：近兩月各班平均剩食（kg）；無資料為 `null`。 |
 
 ---
 
@@ -145,8 +155,11 @@ window.LUNCH_WASTE_CONFIG = {
    - 今天是高於還是低於（或等於）平均
    - 童趣鼓勵或讚美語句
 5. 「本月特別統計」顯示：最常漏登記的班級、本月平均剩食最高的班級。
-6. 下方「本月年級惜食榜」顯示小三至小六各年級總量最少、平均最少的班級。
-7. 同一班級同一天只能登記一次。
+6. 「今日尚未登記」列出尚未送出的班級（非循環日會提示無需登記）。
+7. 「上月特別統計」顯示上一個日曆月的最常漏登記與平均剩食最高。
+8. 「近兩月各班平均剩食」以並排柱狀圖比較上月與本月。
+9. 下方「本月年級惜食榜」顯示小三至小六各年級總量最少、平均最少的班級。
+10. 同一班級同一天只能登記一次。
 
 ---
 
