@@ -98,7 +98,7 @@ window.LUNCH_WASTE_CONFIG = {
 | action | 說明 |
 |--------|------|
 | `submit` | 寫入一筆：date, class, weight_kg, timestamp；同班同日重複則回錯誤；非 D 日拒絕 |
-| `stats` | 回傳本月 `gradeMins`／`mostMissed`／`highestAvg`／`cycleDay`，以及 `todayMissing`、`lastMonth*`、`twoMonthAvgs` |
+| `stats` | 回傳本月 `gradeMins`／`mostMissed`／`highestAvg`／`cycleDay`，以及 `todayMissing`、`lastMonth*`（包括 `lastMonthGradeMins`）、`twoMonthAvgs` |
 
 - 日期以香港時區 `Asia/Hong_Kong`、格式 `YYYY-MM-DD`。
 - 班級必須為 `P3A`–`P6D`；重量必須 `> 0`。
@@ -125,6 +125,7 @@ window.LUNCH_WASTE_CONFIG = {
 |------|------|
 | `todayMissing` | `{ isSchoolDay, cycleDay, missing, submitted }`：今日尚未登記的班級代碼陣列（P3A–P6D）。非 D 日時 `isSchoolDay: false`，`missing` 為空。 |
 | `lastMonth` | 上一個日曆月標籤 `YYYY-MM`。 |
+| `lastMonthGradeMins` | 上月年級惜食榜；形狀同 `gradeMins`，按上月累計，只含 P3–P6。 |
 | `lastMonthMostMissed` | 同上月全部 D 日計算的 `mostMissed`（形狀同 `mostMissed`）。 |
 | `lastMonthHighestAvg` | 同上月至少一筆紀錄的 `highestAvg`（形狀同 `highestAvg`）。 |
 | `twoMonthAvgs` | `{ months: [上月, 本月], byClass: { P3A: [null\|num, null\|num], … } }`：近兩月各班平均剩食（kg）；無資料為 `null`。 |

@@ -163,6 +163,29 @@
           </table>
         </div>
       </section>
+
+      <!-- 上月年級排行榜 -->
+      <section class="card" aria-labelledby="last-dash-title">
+        <h2 id="last-dash-title"><span class="emoji">🏆</span> 上月年級惜食榜</h2>
+        <p class="hint" style="margin: -0.5rem 0 1rem">
+          顯示小三至小六各年級「總剩食最少」與「平均剩食最少」的班級（上月 <span id="last-grade-month-label">—</span> 累計）。
+        </p>
+        <div class="leaderboard" id="last-leaderboard">
+          <p class="empty-state" id="last-lb-empty">載入中…</p>
+          <table id="last-lb-table" hidden>
+            <thead>
+              <tr>
+                <th>年級</th>
+                <th>總量最少 🥇</th>
+                <th>總量 (kg)</th>
+                <th>平均最少 ⭐</th>
+                <th>平均 (kg)</th>
+              </tr>
+            </thead>
+            <tbody id="last-lb-body"></tbody>
+          </table>
+        </div>
+      </section>
     </main>
 
     <p class="footer-note">

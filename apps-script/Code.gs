@@ -12,7 +12,7 @@
  *
  * 「上學日／登記日」定義：來自校曆 D1–D6 循環日清單（school-days-2026-27.json，
  * 共 163 天）。mostMissed 只計算本月 1 日至今日（含，Asia/Hong_Kong）之間的 D 日。
- * 另回傳 todayMissing、lastMonth*、twoMonthAvgs。
+ * 另回傳 todayMissing、lastMonth*（包括 lastMonthGradeMins）、twoMonthAvgs。
  * 班級僅接受 P3A–P6D（舊試算表列不刪除）。
  */
 
@@ -325,6 +325,7 @@ function buildStatsPayload_(rows, dateStr) {
   var lastAsOf = lastDayOfMonth_(lastYm);
   return {
     gradeMins: computeGradeMins_(rows, ym),
+    lastMonthGradeMins: computeGradeMins_(rows, lastYm),
     mostMissed: computeMostMissed_(rows, dateStr),
     highestAvg: computeHighestAvg_(rows, ym),
     month: ym,
@@ -468,6 +469,7 @@ function handleSubmit_(body) {
     comparison: comparison,
     message: message,
     gradeMins: stats.gradeMins,
+    lastMonthGradeMins: stats.lastMonthGradeMins,
     mostMissed: stats.mostMissed,
     highestAvg: stats.highestAvg,
     month: stats.month,
@@ -491,6 +493,7 @@ function handleStats_(body) {
   return jsonOut_({
     ok: true,
     gradeMins: stats.gradeMins,
+    lastMonthGradeMins: stats.lastMonthGradeMins,
     mostMissed: stats.mostMissed,
     highestAvg: stats.highestAvg,
     month: stats.month,

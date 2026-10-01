@@ -43,6 +43,10 @@
     lbEmpty: document.getElementById('lb-empty'),
     lbTable: document.getElementById('lb-table'),
     lbBody: document.getElementById('lb-body'),
+    lastLbEmpty: document.getElementById('last-lb-empty'),
+    lastLbTable: document.getElementById('last-lb-table'),
+    lastLbBody: document.getElementById('last-lb-body'),
+    lastGradeMonthLabel: document.getElementById('last-grade-month-label'),
     mostMissedValue: document.getElementById('most-missed-value'),
     mostMissedDetail: document.getElementById('most-missed-detail'),
     highestAvgValue: document.getElementById('highest-avg-value'),
@@ -320,6 +324,33 @@
     };
   }
 
+  function computeGradeMinsForMonth(rows, ym) {
+    const gradeMins = {};
+    GRADES.forEach((g) => {
+      const gradeClasses = SECTIONS.map((s) => g + s);
+      let bestTotal = null;
+      let bestAvg = null;
+
+      gradeClasses.forEach((cls) => {
+        const clsRows = rows.filter(
+          (r) => r.class === cls && String(r.date).startsWith(ym)
+        );
+        if (clsRows.length === 0) return;
+        const total = clsRows.reduce((a, r) => a + Number(r.weight_kg), 0);
+        const avg = total / clsRows.length;
+        if (!bestTotal || total < bestTotal.total) {
+          bestTotal = { class: cls, total: round2(total), count: clsRows.length };
+        }
+        if (!bestAvg || avg < bestAvg.avg) {
+          bestAvg = { class: cls, avg: round2(avg), count: clsRows.length };
+        }
+      });
+
+      gradeMins[g] = { lowestTotal: bestTotal, lowestAvg: bestAvg };
+    });
+    return gradeMins;
+  }
+
   function computeStats(rows, className, today) {
     const ym = monthPrefix(today);
     const classMonth = rows.filter(
@@ -357,10 +388,12 @@
 
     const lastYm = prevMonth(ym);
     const lastAsOf = lastDayOfMonth(lastYm);
+    const lastMonthGradeMins = computeGradeMinsForMonth(rows, lastYm);
     return {
       monthlyAvg: monthlyAvg === null ? null : round2(monthlyAvg),
       sampleCount: weights.length,
       gradeMins,
+      lastMonthGradeMins,
       mostMissed: computeMostMissed(rows, today),
       highestAvg: computeHighestAvg(rows, ym),
       month: ym,
@@ -420,6 +453,7 @@
       comparison: above ? 'above' : weight < (stats.monthlyAvg || weight) ? 'below' : 'equal',
       message,
       gradeMins: stats.gradeMins,
+      lastMonthGradeMins: stats.lastMonthGradeMins,
       mostMissed: stats.mostMissed,
       highestAvg: stats.highestAvg,
       month: stats.month,
@@ -438,6 +472,7 @@
     return {
       ok: true,
       gradeMins: stats.gradeMins,
+      lastMonthGradeMins: stats.lastMonthGradeMins,
       mostMissed: stats.mostMissed,
       highestAvg: stats.highestAvg,
       month: stats.month,
@@ -715,11 +750,22 @@
   }
 
   // ——— Leaderboard render ———
-  function renderLeaderboard(gradeMins, month) {
+  function renderLeaderboard(gradeMins, month, variant) {
+    const isLastMonth = variant === 'lastMonth';
+    const empty = isLastMonth ? el.lastLbEmpty : el.lbEmpty;
+    const table = isLastMonth ? el.lastLbTable : el.lbTable;
+    const body = isLastMonth ? el.lastLbBody : el.lbBody;
+    if (!empty || !table || !body) return;
+
+    if (isLastMonth && el.lastGradeMonthLabel) {
+      el.lastGradeMonthLabel.textContent = month || '—';
+    }
     if (!gradeMins) {
-      el.lbEmpty.hidden = false;
-      el.lbEmpty.textContent = '尚無本月資料，快來成為第一個登記的班級吧！';
-      el.lbTable.hidden = true;
+      empty.hidden = false;
+      empty.textContent = isLastMonth
+        ? '尚無上月資料。'
+        : '尚無本月資料，快來成為第一個登記的班級吧！';
+      table.hidden = true;
       return;
     }
 
@@ -730,24 +776,25 @@
       return {
         grade: g,
         totalClass: lt ? displayClassName(lt.class) : '—',
-        totalVal: lt ? lt.total.toFixed(2) : '—',
+        totalVal: lt ? Number(lt.total).toFixed(2) : '—',
         avgClass: la ? displayClassName(la.class) : '—',
-        avgVal: la ? la.avg.toFixed(2) : '—',
+        avgVal: la ? Number(la.avg).toFixed(2) : '—',
       };
     });
 
     const hasAny = rows.some((r) => r.totalClass !== '—');
     if (!hasAny) {
-      el.lbEmpty.hidden = false;
-      el.lbEmpty.textContent =
-        '本月（' + (month || '') + '）尚無登記資料。';
-      el.lbTable.hidden = true;
+      empty.hidden = false;
+      empty.textContent = isLastMonth
+        ? '上月（' + (month || '') + '）尚無登記資料。'
+        : '本月（' + (month || '') + '）尚無登記資料。';
+      table.hidden = true;
       return;
     }
 
-    el.lbEmpty.hidden = true;
-    el.lbTable.hidden = false;
-    el.lbBody.innerHTML = rows
+    empty.hidden = true;
+    table.hidden = false;
+    body.innerHTML = rows
       .map(
         (r) =>
           '<tr>' +
@@ -775,6 +822,11 @@
     el.lbEmpty.hidden = false;
     el.lbEmpty.textContent = '載入中…';
     el.lbTable.hidden = true;
+    if (el.lastLbEmpty && el.lastLbTable) {
+      el.lastLbEmpty.hidden = false;
+      el.lastLbEmpty.textContent = '載入中…';
+      el.lastLbTable.hidden = true;
+    }
     if (el.mostMissedValue) {
       el.mostMissedValue.textContent = '…';
       el.mostMissedDetail.textContent = '載入中…';
@@ -799,6 +851,7 @@
         return;
       }
       renderLeaderboard(data.gradeMins, data.month);
+      renderLeaderboard(data.lastMonthGradeMins, data.lastMonth, 'lastMonth');
       renderAllExtra(data);
     } catch (err) {
       el.lbEmpty.textContent = '載入失敗：' + (err.message || String(err));
@@ -889,6 +942,7 @@
       el.weightInput.value = '';
       if (data.gradeMins) {
         renderLeaderboard(data.gradeMins, data.month);
+        renderLeaderboard(data.lastMonthGradeMins, data.lastMonth, 'lastMonth');
         renderAllExtra(data);
       } else {
         await loadStats();
