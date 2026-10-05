@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="校園午餐剩食追蹤 — 月統計與排行" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>午餐剩食追蹤｜統計</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body data-page="stats">
+  <div class="wrap">
+    <header class="site-header">
+      <h1>🥗 午餐剩食追蹤</h1>
+      <p class="subtitle">本月與上月統計、圖表、年級惜食榜</p>
+      <div class="badge-row">
+        <span class="badge">📅 <span id="header-date">—</span></span>
+        <span class="badge" id="cycle-day-badge" hidden>—</span>
+        <span class="badge">🏫 3A–6D</span>
+      </div>
+      <nav class="page-nav" aria-label="頁面">
+        <a class="page-nav-link" href="index.html">✏️ 登記</a>
+        <a class="page-nav-link is-current" href="stats.html" aria-current="page">📊 統計</a>
+      </nav>
+    </header>
+
+    <div id="mock-banner" class="mock-banner" role="status">
+      🧪 目前為<strong>示範模式</strong>（資料存在本機瀏覽器）。正式使用請在 config.js 關閉 USE_MOCK 並填入 Apps Script 網址。
+    </div>
+
+    <main>
+      <section class="card" aria-labelledby="extra-stats-title">
+        <h2 id="extra-stats-title"><span class="emoji">📊</span> 本月特別統計</h2>
+        <p class="hint" style="margin: -0.5rem 0 1rem">
+          統計範圍：本月 1 日至今日（香港時間）。「最常漏登記」只計算校曆 D1–D6 循環日（見 school-days-2026-27.json）。
+        </p>
+        <div class="extra-stats-grid">
+          <div class="stat-tile stat-missed" id="most-missed-card">
+            <div class="stat-tile-label">⏰ 最常漏登記的班級</div>
+            <div class="stat-tile-value" id="most-missed-value">—</div>
+            <div class="stat-tile-detail" id="most-missed-detail">載入中…</div>
+          </div>
+          <div class="stat-tile stat-high-avg" id="highest-avg-card">
+            <div class="stat-tile-label">📈 本月平均剩食最高</div>
+            <div class="stat-tile-value" id="highest-avg-value">—</div>
+            <div class="stat-tile-detail" id="highest-avg-detail">載入中…</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card" aria-labelledby="last-month-stats-title">
+        <h2 id="last-month-stats-title"><span class="emoji">📅</span> 上月特別統計</h2>
+        <p class="hint" style="margin: -0.5rem 0 1rem">
+          統計範圍：上一個日曆月（<span id="last-month-label">—</span>）全部循環日。「最常漏登記」只計算該月 D1–D6。
+        </p>
+        <div class="extra-stats-grid">
+          <div class="stat-tile stat-missed" id="last-most-missed-card">
+            <div class="stat-tile-label">⏰ 上月最常漏登記</div>
+            <div class="stat-tile-value" id="last-most-missed-value">—</div>
+            <div class="stat-tile-detail" id="last-most-missed-detail">載入中…</div>
+          </div>
+          <div class="stat-tile stat-high-avg" id="last-highest-avg-card">
+            <div class="stat-tile-label">📈 上月平均剩食最高</div>
+            <div class="stat-tile-value" id="last-highest-avg-value">—</div>
+            <div class="stat-tile-detail" id="last-highest-avg-detail">載入中…</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card" aria-labelledby="chart-title">
+        <h2 id="chart-title"><span class="emoji">📉</span> 近兩月各班平均剩食</h2>
+        <p class="hint" style="margin: -0.5rem 0 1rem">
+          比較上月與本月各班（3A–6D）平均剩食重量（公斤）。無資料的月份顯示「—」。
+        </p>
+        <div id="chart-legend" class="chart-legend" aria-hidden="false"></div>
+        <p class="empty-state" id="chart-empty">載入中…</p>
+        <div id="chart-body" class="chart-body" role="img" aria-label="近兩月各班平均剩食柱狀圖"></div>
+      </section>
+
+      <section class="card" aria-labelledby="dash-title">
+        <h2 id="dash-title"><span class="emoji">🏆</span> 本月年級惜食榜</h2>
+        <p class="hint" style="margin: -0.5rem 0 1rem">
+          顯示小三至小六各年級「總剩食最少」與「平均剩食最少」的班級（本月累計）。
+        </p>
+        <div class="actions" style="margin-bottom: 0.85rem">
+          <button type="button" class="btn btn-secondary" id="refresh-btn">
+            🔄 重新整理榜單
+          </button>
+        </div>
+        <div class="leaderboard" id="leaderboard">
+          <p class="empty-state" id="lb-empty">載入中…</p>
+          <table id="lb-table" hidden>
+            <thead>
+              <tr>
+                <th>年級</th>
+                <th>總量最少 🥇</th>
+                <th>總量 (kg)</th>
+                <th>平均最少 ⭐</th>
+                <th>平均 (kg)</th>
+              </tr>
+            </thead>
+            <tbody id="lb-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card" aria-labelledby="last-dash-title">
+        <h2 id="last-dash-title"><span class="emoji">🏆</span> 上月年級惜食榜</h2>
+        <p class="hint" style="margin: -0.5rem 0 1rem">
+          顯示小三至小六各年級「總剩食最少」與「平均剩食最少」的班級（上月 <span id="last-grade-month-label">—</span> 累計）。
+        </p>
+        <div class="leaderboard" id="last-leaderboard">
+          <p class="empty-state" id="last-lb-empty">載入中…</p>
+          <table id="last-lb-table" hidden>
+            <thead>
+              <tr>
+                <th>年級</th>
+                <th>總量最少 🥇</th>
+                <th>總量 (kg)</th>
+                <th>平均最少 ⭐</th>
+                <th>平均 (kg)</th>
+              </tr>
+            </thead>
+            <tbody id="last-lb-body"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <p class="footer-note">
+      無廣告 · 無追蹤 · 日常登記在 <a href="index.html">登記頁</a>
+    </p>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

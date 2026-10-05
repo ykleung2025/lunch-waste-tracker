@@ -24,6 +24,7 @@
     !cfg.SCRIPT_URL ||
     cfg.SCRIPT_URL === 'YOUR_APPS_SCRIPT_WEB_APP_URL_HERE'
   );
+  const PAGE = (document.body && document.body.dataset.page) || 'record';
 
   // ——— DOM ———
   const el = {
@@ -40,6 +41,11 @@
     feedbackStats: document.getElementById('feedback-stats'),
     mockBanner: document.getElementById('mock-banner'),
     refreshBtn: document.getElementById('refresh-btn'),
+    refreshTodayBtn: document.getElementById('refresh-today-btn'),
+    todayMissingLabel: document.getElementById('today-missing-label'),
+    todaySubmittedLabel: document.getElementById('today-submitted-label'),
+    todaySubmittedStatus: document.getElementById('today-submitted-status'),
+    todaySubmittedList: document.getElementById('today-submitted-list'),
     lbEmpty: document.getElementById('lb-empty'),
     lbTable: document.getElementById('lb-table'),
     lbBody: document.getElementById('lb-body'),
@@ -184,13 +190,54 @@
     return /^P\d[A-D]$/.test(value) ? value.slice(1) : value;
   }
 
-  function fillClassOptions() {
-    CLASSES.forEach((c) => {
+  function formLocked() {
+    return !!(el.classSelect && el.classSelect.disabled);
+  }
+
+  /**
+   * 班級選單只列出今日尚未登記的班。已登記的班從選項移除。
+   */
+  function fillClassOptions(submittedList) {
+    if (!el.classSelect) return;
+    const submitted = {};
+    (submittedList || []).forEach((c) => {
+      submitted[c] = true;
+    });
+    const previous = el.classSelect.value;
+    const available = CLASSES.filter((c) => !submitted[c]);
+    el.classSelect.innerHTML = '';
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    if (available.length === 0) {
+      placeholder.textContent = '今日所有班級已登記';
+      el.classSelect.appendChild(placeholder);
+      el.classSelect.disabled = true;
+      if (el.weightInput) el.weightInput.disabled = true;
+      if (el.submitBtn) el.submitBtn.disabled = true;
+      return;
+    }
+    placeholder.textContent = '— 請選擇班級 —';
+    el.classSelect.appendChild(placeholder);
+    available.forEach((c) => {
       const opt = document.createElement('option');
       opt.value = c;
       opt.textContent = displayClassName(c);
       el.classSelect.appendChild(opt);
     });
+    el.classSelect.disabled = false;
+    if (el.weightInput) el.weightInput.disabled = false;
+    if (el.submitBtn) el.submitBtn.disabled = false;
+    if (previous && available.indexOf(previous) !== -1) {
+      el.classSelect.value = previous;
+    }
+  }
+
+  function setClassSelectLoading() {
+    if (!el.classSelect) return;
+    el.classSelect.innerHTML = '<option value="">載入今日名單…</option>';
+    el.classSelect.disabled = true;
+    if (el.weightInput) el.weightInput.disabled = true;
+    if (el.submitBtn) el.submitBtn.disabled = true;
   }
 
   function showCycleDay(today) {
@@ -233,7 +280,8 @@
   }
 
   function setSubmitting(busy) {
-    el.submitBtn.disabled = busy;
+    if (!el.submitBtn) return;
+    el.submitBtn.disabled = busy || formLocked();
     el.submitBtn.innerHTML = busy
       ? '<span class="loading" aria-hidden="true"></span> 送出中…'
       : '送出登記';
@@ -428,6 +476,7 @@
         ok: false,
         error: 'duplicate',
         message: '這個班級今天已經登記過了喔！每天只能登記一次，明天再來吧！😊',
+        todayMissing: computeTodayMissing(rows, today),
       };
     }
 
@@ -440,29 +489,38 @@
     });
     mockSave(rows);
 
-    const stats = computeStats(rows, className, today);
-    const above =
-      stats.monthlyAvg !== null && weight > stats.monthlyAvg;
+    const ym = monthPrefix(today);
+    const weights = rows
+      .filter((r) => r.class === className && String(r.date).startsWith(ym))
+      .map((r) => Number(r.weight_kg));
+    const monthlyAvg =
+      weights.length === 0
+        ? null
+        : round2(weights.reduce((a, b) => a + b, 0) / weights.length);
+    const above = monthlyAvg !== null && weight > monthlyAvg;
     const message = above ? pick(ENCOURAGE) : pick(PRAISE);
 
     return {
       ok: true,
       todayWeight: weight,
-      monthlyAvg: stats.monthlyAvg,
-      sampleCount: stats.sampleCount,
-      comparison: above ? 'above' : weight < (stats.monthlyAvg || weight) ? 'below' : 'equal',
+      monthlyAvg,
+      sampleCount: weights.length,
+      comparison: above ? 'above' : weight < (monthlyAvg || weight) ? 'below' : 'equal',
       message,
-      gradeMins: stats.gradeMins,
-      lastMonthGradeMins: stats.lastMonthGradeMins,
-      mostMissed: stats.mostMissed,
-      highestAvg: stats.highestAvg,
-      month: stats.month,
-      cycleDay: stats.cycleDay,
-      todayMissing: stats.todayMissing,
-      lastMonth: stats.lastMonth,
-      lastMonthMostMissed: stats.lastMonthMostMissed,
-      lastMonthHighestAvg: stats.lastMonthHighestAvg,
-      twoMonthAvgs: stats.twoMonthAvgs,
+      month: ym,
+      cycleDay: cycleDayFor(today),
+      todayMissing: computeTodayMissing(rows, today),
+    };
+  }
+
+  function mockToday(today) {
+    const rows = mockLoad();
+    const todayMissing = computeTodayMissing(rows, today);
+    return {
+      ok: true,
+      date: today,
+      cycleDay: todayMissing.cycleDay,
+      todayMissing,
     };
   }
 
@@ -490,6 +548,9 @@
     if (USE_MOCK) {
       if (payload.action === 'submit') {
         return mockSubmit(payload.class, Number(payload.weight_kg), payload.date);
+      }
+      if (payload.action === 'today') {
+        return mockToday(payload.date || hkToday());
       }
       if (payload.action === 'stats') {
         return mockStats(payload.date || hkToday());
@@ -598,6 +659,60 @@
         )
         .join('');
     }
+  }
+
+  function setTodayGroupsVisible(visible) {
+    if (el.todayMissingLabel) el.todayMissingLabel.hidden = !visible;
+    if (el.todaySubmittedLabel) el.todaySubmittedLabel.hidden = !visible;
+  }
+
+  function renderTodaySubmitted(info) {
+    if (!el.todaySubmittedList && !el.todaySubmittedStatus) return;
+    if (!info || !info.isSchoolDay) {
+      if (el.todaySubmittedStatus) {
+        el.todaySubmittedStatus.textContent = '';
+        el.todaySubmittedStatus.hidden = true;
+      }
+      if (el.todaySubmittedList) {
+        el.todaySubmittedList.innerHTML = '';
+        el.todaySubmittedList.hidden = true;
+      }
+      return;
+    }
+    const submitted = Array.isArray(info.submitted) ? info.submitted : [];
+    if (el.todaySubmittedStatus) {
+      el.todaySubmittedStatus.hidden = false;
+      el.todaySubmittedStatus.textContent =
+        submitted.length === 0 ? '尚無' : '共 ' + submitted.length + ' 班';
+    }
+    if (!el.todaySubmittedList) return;
+    if (submitted.length === 0) {
+      el.todaySubmittedList.innerHTML = '';
+      el.todaySubmittedList.hidden = true;
+      return;
+    }
+    el.todaySubmittedList.hidden = false;
+    el.todaySubmittedList.innerHTML = submitted
+      .map(
+        (c) =>
+          '<span class="submitted-chip">' + displayClassName(c) + '</span>'
+      )
+      .join('');
+  }
+
+  function renderTodayStatus(info) {
+    renderTodayMissing(info);
+    const schoolDay = !!(info && info.isSchoolDay);
+    const missing =
+      schoolDay && info && Array.isArray(info.missing) ? info.missing : [];
+    const submitted =
+      schoolDay && info && Array.isArray(info.submitted) ? info.submitted : [];
+    if (el.todayMissingLabel) {
+      el.todayMissingLabel.hidden = !schoolDay || missing.length === 0;
+    }
+    if (el.todaySubmittedLabel) el.todaySubmittedLabel.hidden = !schoolDay;
+    renderTodaySubmitted(info);
+    if (PAGE === 'record') fillClassOptions(submitted);
   }
 
   function renderLastMonthStats(mostMissed, highestAvg, lastMonth) {
@@ -818,7 +933,53 @@
       .join('');
   }
 
+  let hasTodayStatus = false;
+
+  async function loadToday(options) {
+    const fresh = !!(options && options.fresh);
+    if (!hasTodayStatus) {
+      if (el.todayMissingStatus) {
+        el.todayMissingStatus.textContent = '載入中…';
+        el.todayMissingStatus.className = 'today-missing-status';
+      }
+      setClassSelectLoading();
+      setTodayGroupsVisible(false);
+    } else if (el.refreshTodayBtn) {
+      el.refreshTodayBtn.disabled = true;
+    }
+    try {
+      const payload = { action: 'today', date: hkToday() };
+      if (fresh) payload.fresh = true;
+      const data = await apiCall(payload);
+      if (!data.ok) {
+        if (!hasTodayStatus) {
+          if (el.todayMissingStatus) {
+            el.todayMissingStatus.textContent =
+              data.error === 'unknown_action'
+                ? '伺服器尚未支援今日名單。請重新部署 Apps Script（新版本）後再試。'
+                : data.message || '無法載入今日名單';
+            el.todayMissingStatus.className = 'today-missing-status is-warn';
+          }
+          fillClassOptions([]);
+        }
+        return;
+      }
+      renderTodayStatus(data.todayMissing);
+      hasTodayStatus = true;
+    } catch (err) {
+      if (!hasTodayStatus && el.todayMissingStatus) {
+        el.todayMissingStatus.textContent =
+          '載入失敗：' + (err.message || String(err));
+        el.todayMissingStatus.className = 'today-missing-status is-warn';
+        fillClassOptions([]);
+      }
+    } finally {
+      if (el.refreshTodayBtn) el.refreshTodayBtn.disabled = false;
+    }
+  }
+
   async function loadStats() {
+    if (!el.lbEmpty) return;
     el.lbEmpty.hidden = false;
     el.lbEmpty.textContent = '載入中…';
     el.lbTable.hidden = true;
@@ -903,6 +1064,7 @@
               ? '今天不用登記'
               : '無法送出';
         showFeedback('error', title, data.message || '請稍後再試。');
+        if (data.todayMissing) renderTodayStatus(data.todayMissing);
         return;
       }
 
@@ -940,12 +1102,8 @@
       );
 
       el.weightInput.value = '';
-      if (data.gradeMins) {
-        renderLeaderboard(data.gradeMins, data.month);
-        renderLeaderboard(data.lastMonthGradeMins, data.lastMonth, 'lastMonth');
-        renderAllExtra(data);
-      } else {
-        await loadStats();
+      if (data.todayMissing) {
+        renderTodayStatus(data.todayMissing);
       }
     } catch (err) {
       showFeedback('error', '連線失敗', err.message || String(err));
@@ -955,21 +1113,38 @@
   }
 
   // ——— Init ———
-  function init() {
-    fillClassOptions();
+  function initCommon() {
     const today = hkToday();
     showCycleDay(today);
-
-    if (USE_MOCK) {
+    if (USE_MOCK && el.mockBanner) {
       el.mockBanner.classList.add('visible');
     }
+  }
 
-    el.form.addEventListener('submit', onSubmit);
-    el.refreshBtn.addEventListener('click', () => {
-      loadStats();
-    });
+  function initRecord() {
+    initCommon();
+    if (el.form) el.form.addEventListener('submit', onSubmit);
+    if (el.refreshTodayBtn) {
+      el.refreshTodayBtn.addEventListener('click', () => {
+        loadToday({ fresh: true });
+      });
+    }
+    loadToday();
+  }
 
+  function initStats() {
+    initCommon();
+    if (el.refreshBtn) {
+      el.refreshBtn.addEventListener('click', () => {
+        loadStats();
+      });
+    }
     loadStats();
+  }
+
+  function init() {
+    if (PAGE === 'stats') initStats();
+    else initRecord();
   }
 
   if (document.readyState === 'loading') {
