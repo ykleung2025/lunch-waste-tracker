@@ -5,15 +5,23 @@
  * 試算表欄位：date | class | weight_kg | timestamp
  *
  * 前端以 POST + text/plain JSON body 呼叫（避免 CORS preflight）：
+ *   { &quot;action&quot;: &quot;today&quot;,  &quot;date&quot;: &quot;2026-09-28&quot; }
+ *   { &quot;action&quot;: &quot;today&quot;,  &quot;date&quot;: &quot;2026-09-28&quot;, &quot;fresh&quot;: true }
  *   { &quot;action&quot;: &quot;submit&quot;, &quot;class&quot;: &quot;P3A&quot;, &quot;weight_kg&quot;: 1.2, &quot;date&quot;: &quot;2026-09-28&quot; }
  *   { &quot;action&quot;: &quot;stats&quot;,  &quot;date&quot;: &quot;2026-09-28&quot; }
  *
- * 亦支援 doGet?action=stats&amp;date=YYYY-MM-DD 讀取統計。
+ * 亦支援 doGet?action=today&amp;date=YYYY-MM-DD 與 doGet?action=stats&amp;date=YYYY-MM-DD。
+ *
+ * action=today 只回傳今日已登記／尚未登記（登記頁用）。不計算月統計、排行或圖表。
+ * 成功回覆會先用 CacheService；按「重新整理」時前端送 fresh=true 才重讀試算表。
+ * action=stats 才回傳本月／上月統計、年級榜、twoMonthAvgs（統計頁用）。
  *
  * 「上學日／登記日」定義：來自校曆 D1–D6 循環日清單（school-days-2026-27.json，
  * 共 163 天）。mostMissed 只計算本月 1 日至今日（含，Asia/Hong_Kong）之間的 D 日。
- * 另回傳 todayMissing、lastMonth*、twoMonthAvgs。
  * 班級僅接受 P3A–P6D（舊試算表列不刪除）。
+ *
+ * 改動本檔後必須重新部署網頁應用程式（部署 → 管理部署作業 → 編輯 → 新版本），
+ * 否則線上 /exec 仍是舊版，登記頁的 action=today 會失敗。
  */
 
 var SHEET_NAME = &#x27;紀錄&#x27;;
@@ -325,6 +333,7 @@ function buildStatsPayload_(rows, dateStr) {
   var lastAsOf = lastDayOfMonth_(lastYm);
   return {
     gradeMins: computeGradeMins_(rows, ym),
+    lastMonthGradeMins: computeGradeMins_(rows, lastYm),
     mostMissed: computeMostMissed_(rows, dateStr),
     highestAvg: computeHighestAvg_(rows, ym),
     month: ym,
@@ -401,6 +410,187 @@ function pick_(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
+/** 今日已登記班級快取。避免登記頁每次都重讀整張試算表。 */
+var TODAY_CACHE_TTL_SEC = 21600;
+var TODAY_CACHE_PREFIX = &#x27;today_classes_v1_&#x27;;
+
+function todayCacheKey_(dateStr) {
+  return TODAY_CACHE_PREFIX + dateStr;
+}
+
+function readCachedTodayClasses_(dateStr) {
+  try {
+    var raw = CacheService.getScriptCache().get(todayCacheKey_(dateStr));
+    if (raw == null || raw === &#x27;&#x27;) return null;
+    var parsed = JSON.parse(raw);
+    if (!parsed || !Array.isArray(parsed.classes)) return null;
+    return parsed.classes;
+  } catch (err) {
+    return null;
+  }
+}
+
+function writeCachedTodayClasses_(dateStr, classes) {
+  try {
+    CacheService.getScriptCache().put(
+      todayCacheKey_(dateStr),
+      JSON.stringify({ classes: classes }),
+      TODAY_CACHE_TTL_SEC
+    );
+  } catch (err) {
+    // 快取失敗時改走試算表，不影響寫入。
+  }
+}
+
+/**
+ * 只讀 date、class 兩欄，篩出當日已登記班級（不讀重量、不計算月統計）。
+ */
+function readTodayClassesFromSheet_(sheet, dateStr) {
+  var lastRow = sheet.getLastRow();
+  if (lastRow &lt; 2) return [];
+  var data = sheet.getRange(2, 1, lastRow - 1, 2).getValues();
+  var found = [];
+  var seen = {};
+  for (var i = 0; i &lt; data.length; i++) {
+    if (normalizeDate_(data[i][0]) !== dateStr) continue;
+    var cls = String(data[i][1] || &#x27;&#x27;).trim().toUpperCase();
+    if (!cls || seen[cls]) continue;
+    seen[cls] = true;
+    found.push(cls);
+  }
+  return found;
+}
+
+/**
+ * 送出時一次掃過 date/class/weight：確認當日重複，並只累計該班本月重量。
+ * 不計算年級榜、上月或圖表。
+ */
+function scanSubmitContext_(sheet, dateStr, className, ym) {
+  var lastRow = sheet.getLastRow();
+  var todayClasses = [];
+  var seen = {};
+  var weights = [];
+  var duplicate = false;
+  if (lastRow &lt; 2) {
+    return { todayClasses: todayClasses, duplicate: false, weights: weights };
+  }
+  var data = sheet.getRange(2, 1, lastRow - 1, 3).getValues();
+  for (var i = 0; i &lt; data.length; i++) {
+    var d = normalizeDate_(data[i][0]);
+    var cls = String(data[i][1] || &#x27;&#x27;).trim().toUpperCase();
+    if (!d || !cls) continue;
+    if (d === dateStr) {
+      if (!seen[cls]) {
+        seen[cls] = true;
+        todayClasses.push(cls);
+      }
+      if (cls === className) duplicate = true;
+    }
+    if (cls === className &amp;&amp; String(d).indexOf(ym) === 0) {
+      var w = Number(data[i][2]);
+      if (isFinite(w)) weights.push(w);
+    }
+  }
+  return { todayClasses: todayClasses, duplicate: duplicate, weights: weights };
+}
+
+function todayPayloadFromClasses_(dateStr, submittedClasses) {
+  var cycleDay = cycleDayFor_(dateStr);
+  var classes = validClasses_();
+  if (!cycleDay) {
+    return {
+      ok: true,
+      date: dateStr,
+      cycleDay: null,
+      todayMissing: { isSchoolDay: false, cycleDay: null, missing: [], submitted: [] },
+    };
+  }
+  var submittedMap = {};
+  var i;
+  for (i = 0; i &lt; submittedClasses.length; i++) {
+    submittedMap[submittedClasses[i]] = true;
+  }
+  var missing = [];
+  var submitted = [];
+  for (i = 0; i &lt; classes.length; i++) {
+    if (submittedMap[classes[i]]) submitted.push(classes[i]);
+    else missing.push(classes[i]);
+  }
+  return {
+    ok: true,
+    date: dateStr,
+    cycleDay: cycleDay,
+    todayMissing: {
+      isSchoolDay: true,
+      cycleDay: cycleDay,
+      missing: missing,
+      submitted: submitted,
+    },
+  };
+}
+
+function wantsFresh_(body) {
+  if (!body || body.fresh === undefined || body.fresh === null || body.fresh === &#x27;&#x27;) return false;
+  if (body.fresh === true || body.fresh === 1) return true;
+  var flag = String(body.fresh).toLowerCase();
+  return flag === &#x27;1&#x27; || flag === &#x27;true&#x27; || flag === &#x27;yes&#x27;;
+}
+
+/**
+ * 登記頁輕量讀取：只回今日已登記／尚未登記。
+ * 非循環日不讀試算表。循環日優先用快取；fresh=true 時重讀 date+class 欄。
+ */
+function handleToday_(body) {
+  var dateStr = String((body &amp;&amp; body.date) || &#x27;&#x27;).trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    dateStr = hkToday_();
+  }
+  if (!cycleDayFor_(dateStr)) {
+    return jsonOut_(todayPayloadFromClasses_(dateStr, []));
+  }
+  if (!wantsFresh_(body)) {
+    var cached = readCachedTodayClasses_(dateStr);
+    if (cached) return jsonOut_(todayPayloadFromClasses_(dateStr, cached));
+  }
+  return withScriptLock_(function () {
+    if (!wantsFresh_(body)) {
+      var again = readCachedTodayClasses_(dateStr);
+      if (again) return jsonOut_(todayPayloadFromClasses_(dateStr, again));
+    }
+    var sheet = getOrCreateSheet_();
+    var classes = readTodayClassesFromSheet_(sheet, dateStr);
+    writeCachedTodayClasses_(dateStr, classes);
+    return jsonOut_(todayPayloadFromClasses_(dateStr, classes));
+  });
+}
+
+function duplicatePayload_(dateStr, classList, cycleDay) {
+  var info = todayPayloadFromClasses_(dateStr, classList || []);
+  return {
+    ok: false,
+    error: &#x27;duplicate&#x27;,
+    message: &#x27;這個班級今天已經登記過了喔！每天只能登記一次，明天再來吧！😊&#x27;,
+    cycleDay: cycleDay,
+    todayMissing: info.todayMissing,
+  };
+}
+
+function withScriptLock_(fn) {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(15000)) {
+    return jsonOut_({
+      ok: false,
+      error: &#x27;busy&#x27;,
+      message: &#x27;系統忙碌中，請稍後再試一次。&#x27;,
+    });
+  }
+  try {
+    return fn();
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 function handleSubmit_(body) {
   var classes = validClasses_();
   var className = String(body[&#x27;class&#x27;] || &#x27;&#x27;).trim().toUpperCase();
@@ -435,48 +625,48 @@ function handleSubmit_(body) {
     });
   }
 
-  var sheet = getOrCreateSheet_();
-  var rows = readAllRows_(sheet);
-
-  for (var i = 0; i &lt; rows.length; i++) {
-    if (rows[i].date === dateStr &amp;&amp; rows[i].class === className) {
-      return jsonOut_({
-        ok: false,
-        error: &#x27;duplicate&#x27;,
-        message: &#x27;這個班級今天已經登記過了喔！每天只能登記一次，明天再來吧！😊&#x27;,
-      });
+  return withScriptLock_(function () {
+    var cached = readCachedTodayClasses_(dateStr);
+    if (cached &amp;&amp; cached.indexOf(className) !== -1) {
+      return jsonOut_(duplicatePayload_(dateStr, cached, cycleDay));
     }
-  }
 
-  var ts = Utilities.formatDate(new Date(), TZ, &quot;yyyy-MM-dd&#x27;T&#x27;HH:mm:ss&quot;);
-  sheet.appendRow([dateStr, className, weight, ts]);
+    var sheet = getOrCreateSheet_();
+    var ym = dateStr.substring(0, 7);
+    var scan = scanSubmitContext_(sheet, dateStr, className, ym);
+    if (scan.duplicate) {
+      writeCachedTodayClasses_(dateStr, scan.todayClasses);
+      return jsonOut_(duplicatePayload_(dateStr, scan.todayClasses, cycleDay));
+    }
 
-  rows.push({ date: dateStr, class: className, weight_kg: weight, timestamp: ts });
-  var ym = dateStr.substring(0, 7);
-  var avgInfo = classMonthAvg_(rows, className, ym);
-  var monthlyAvg = avgInfo.avg;
-  var above = monthlyAvg !== null &amp;&amp; weight &gt; monthlyAvg;
-  var comparison = above ? &#x27;above&#x27; : (weight &lt; monthlyAvg ? &#x27;below&#x27; : &#x27;equal&#x27;);
-  var message = above ? pick_(ENCOURAGE) : pick_(PRAISE);
-  var stats = buildStatsPayload_(rows, dateStr);
+    var ts = Utilities.formatDate(new Date(), TZ, &quot;yyyy-MM-dd&#x27;T&#x27;HH:mm:ss&quot;);
+    sheet.appendRow([dateStr, className, weight, ts]);
 
-  return jsonOut_({
-    ok: true,
-    todayWeight: round2_(weight),
-    monthlyAvg: monthlyAvg,
-    sampleCount: avgInfo.count,
-    comparison: comparison,
-    message: message,
-    gradeMins: stats.gradeMins,
-    mostMissed: stats.mostMissed,
-    highestAvg: stats.highestAvg,
-    month: stats.month,
-    cycleDay: cycleDay,
-    todayMissing: stats.todayMissing,
-    lastMonth: stats.lastMonth,
-    lastMonthMostMissed: stats.lastMonthMostMissed,
-    lastMonthHighestAvg: stats.lastMonthHighestAvg,
-    twoMonthAvgs: stats.twoMonthAvgs,
+    var todayClasses = scan.todayClasses.slice();
+    todayClasses.push(className);
+    writeCachedTodayClasses_(dateStr, todayClasses);
+
+    var weights = scan.weights.slice();
+    weights.push(weight);
+    var sum = 0;
+    for (var j = 0; j &lt; weights.length; j++) sum += weights[j];
+    var monthlyAvg = round2_(sum / weights.length);
+    var above = weight &gt; monthlyAvg;
+    var comparison = above ? &#x27;above&#x27; : (weight &lt; monthlyAvg ? &#x27;below&#x27; : &#x27;equal&#x27;);
+    var message = above ? pick_(ENCOURAGE) : pick_(PRAISE);
+    var todayInfo = todayPayloadFromClasses_(dateStr, todayClasses);
+
+    return jsonOut_({
+      ok: true,
+      todayWeight: round2_(weight),
+      monthlyAvg: monthlyAvg,
+      sampleCount: weights.length,
+      comparison: comparison,
+      message: message,
+      month: ym,
+      cycleDay: cycleDay,
+      todayMissing: todayInfo.todayMissing,
+    });
   });
 }
 
@@ -491,6 +681,7 @@ function handleStats_(body) {
   return jsonOut_({
     ok: true,
     gradeMins: stats.gradeMins,
+    lastMonthGradeMins: stats.lastMonthGradeMins,
     mostMissed: stats.mostMissed,
     highestAvg: stats.highestAvg,
     month: stats.month,
@@ -516,6 +707,9 @@ function doPost(e) {
   try {
     var body = parseBody_(e);
     var action = String(body.action || &#x27;submit&#x27;).toLowerCase();
+    if (action === &#x27;today&#x27;) {
+      return handleToday_(body);
+    }
     if (action === &#x27;stats&#x27;) {
       return handleStats_(body);
     }
@@ -536,12 +730,15 @@ function doGet(e) {
   try {
     var p = (e &amp;&amp; e.parameter) || {};
     var action = String(p.action || &#x27;stats&#x27;).toLowerCase();
+    if (action === &#x27;today&#x27;) {
+      return handleToday_({ date: p.date || &#x27;&#x27;, fresh: p.fresh || &#x27;&#x27; });
+    }
     if (action === &#x27;stats&#x27;) {
       return handleStats_({ date: p.date || &#x27;&#x27; });
     }
     return jsonOut_({
       ok: true,
-      message: &#x27;午餐剩食追蹤 API 運作中。請用 POST 送出 action=submit 或 action=stats。&#x27;,
+      message: &#x27;午餐剩食追蹤 API 運作中。請用 POST 送出 action=today、action=submit 或 action=stats。&#x27;,
     });
   } catch (err) {
     return jsonOut_({

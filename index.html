@@ -3,21 +3,25 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="description" content="校園午餐剩食追蹤 — 一起減少食物浪費！" />
+  <meta name="description" content="校園午餐剩食追蹤 — 登記今日剩食" />
   <meta name="robots" content="noindex, nofollow" />
-  <title>午餐剩食追蹤｜一起惜食</title>
+  <title>午餐剩食追蹤｜登記</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
-<body>
+<body data-page="record">
   <div class="wrap">
     <header class="site-header">
       <h1>🥗 午餐剩食追蹤</h1>
-      <p class="subtitle">一起惜食，讓地球更健康！</p>
+      <p class="subtitle">登記今日剩食，一起惜食！</p>
       <div class="badge-row">
         <span class="badge">📅 <span id="header-date">—</span></span>
         <span class="badge" id="cycle-day-badge" hidden>—</span>
         <span class="badge">🏫 3A–6D</span>
       </div>
+      <nav class="page-nav" aria-label="頁面">
+        <a class="page-nav-link is-current" href="index.html" aria-current="page">✏️ 登記</a>
+        <a class="page-nav-link" href="stats.html">📊 統計</a>
+      </nav>
     </header>
 
     <div id="mock-banner" class="mock-banner" role="status">
@@ -25,14 +29,13 @@
     </div>
 
     <main>
-      <!-- 登記表單 -->
       <section class="card" aria-labelledby="form-title">
         <h2 id="form-title"><span class="emoji">✏️</span> 登記今日剩食</h2>
         <form id="waste-form" class="form-grid" novalidate>
           <div>
-            <label for="class-select">班級 <span class="hint">（必選，3A–6D）</span></label>
+            <label for="class-select">班級 <span class="hint">（必選，3A–6D；已登記的班會從清單消失）</span></label>
             <select id="class-select" name="class" required>
-              <option value="">— 請選擇班級 —</option>
+              <option value="">載入今日名單…</option>
             </select>
           </div>
 
@@ -62,7 +65,7 @@
           </div>
 
           <div class="actions">
-            <button type="submit" class="btn btn-primary" id="submit-btn">
+            <button type="submit" class="btn btn-primary" id="submit-btn" disabled>
               送出登記
             </button>
           </div>
@@ -75,121 +78,27 @@
         </div>
       </section>
 
-      <!-- 本月特別統計 -->
-      <section class="card" aria-labelledby="extra-stats-title">
-        <h2 id="extra-stats-title"><span class="emoji">📊</span> 本月特別統計</h2>
+      <section class="card" aria-labelledby="today-status-title">
+        <h2 id="today-status-title"><span class="emoji">🔔</span> 今日登記狀況</h2>
         <p class="hint" style="margin: -0.5rem 0 1rem">
-          統計範圍：本月 1 日至今日（香港時間）。「最常漏登記」只計算校曆 D1–D6 循環日（見 school-days-2026-27.json）。
-        </p>
-        <div class="extra-stats-grid">
-          <div class="stat-tile stat-missed" id="most-missed-card">
-            <div class="stat-tile-label">⏰ 最常漏登記的班級</div>
-            <div class="stat-tile-value" id="most-missed-value">—</div>
-            <div class="stat-tile-detail" id="most-missed-detail">載入中…</div>
-          </div>
-          <div class="stat-tile stat-high-avg" id="highest-avg-card">
-            <div class="stat-tile-label">📈 本月平均剩食最高</div>
-            <div class="stat-tile-value" id="highest-avg-value">—</div>
-            <div class="stat-tile-detail" id="highest-avg-detail">載入中…</div>
-          </div>
-        </div>
-      </section>
-
-      <!-- 今日尚未登記 -->
-      <section class="card" aria-labelledby="today-missing-title">
-        <h2 id="today-missing-title"><span class="emoji">🔔</span> 今日尚未登記</h2>
-        <p class="hint" style="margin: -0.5rem 0 1rem">
-          僅在校曆 D1–D6 循環日顯示尚未送出的班級（3A–6D）。非循環日無需登記。
+          只看今天：哪些班已登記、哪些班尚未登記。已登記的班不會出現在上方班級選單。
         </p>
         <p id="today-missing-status" class="today-missing-status">載入中…</p>
+        <p class="today-group-label" id="today-missing-label" hidden>尚未登記</p>
         <div id="today-missing-list" class="today-missing-list" hidden></div>
-      </section>
-
-      <!-- 上月特別統計 -->
-      <section class="card" aria-labelledby="last-month-stats-title">
-        <h2 id="last-month-stats-title"><span class="emoji">📅</span> 上月特別統計</h2>
-        <p class="hint" style="margin: -0.5rem 0 1rem">
-          統計範圍：上一個日曆月（<span id="last-month-label">—</span>）全部循環日。「最常漏登記」只計算該月 D1–D6。
-        </p>
-        <div class="extra-stats-grid">
-          <div class="stat-tile stat-missed" id="last-most-missed-card">
-            <div class="stat-tile-label">⏰ 上月最常漏登記</div>
-            <div class="stat-tile-value" id="last-most-missed-value">—</div>
-            <div class="stat-tile-detail" id="last-most-missed-detail">載入中…</div>
-          </div>
-          <div class="stat-tile stat-high-avg" id="last-highest-avg-card">
-            <div class="stat-tile-label">📈 上月平均剩食最高</div>
-            <div class="stat-tile-value" id="last-highest-avg-value">—</div>
-            <div class="stat-tile-detail" id="last-highest-avg-detail">載入中…</div>
-          </div>
-        </div>
-      </section>
-
-      <!-- 近兩月平均柱狀圖 -->
-      <section class="card" aria-labelledby="chart-title">
-        <h2 id="chart-title"><span class="emoji">📉</span> 近兩月各班平均剩食</h2>
-        <p class="hint" style="margin: -0.5rem 0 1rem">
-          比較上月與本月各班（3A–6D）平均剩食重量（公斤）。無資料的月份顯示「—」。
-        </p>
-        <div id="chart-legend" class="chart-legend" aria-hidden="false"></div>
-        <p class="empty-state" id="chart-empty">載入中…</p>
-        <div id="chart-body" class="chart-body" role="img" aria-label="近兩月各班平均剩食柱狀圖"></div>
-      </section>
-
-      <!-- 年級排行榜 -->
-      <section class="card" aria-labelledby="dash-title">
-        <h2 id="dash-title"><span class="emoji">🏆</span> 本月年級惜食榜</h2>
-        <p class="hint" style="margin: -0.5rem 0 1rem">
-          顯示小三至小六各年級「總剩食最少」與「平均剩食最少」的班級（本月累計）。
-        </p>
-        <div class="actions" style="margin-bottom: 0.85rem">
-          <button type="button" class="btn btn-secondary" id="refresh-btn">
-            🔄 重新整理榜單
+        <p class="today-group-label" id="today-submitted-label" hidden>已登記</p>
+        <p id="today-submitted-status" class="today-submitted-status" hidden></p>
+        <div id="today-submitted-list" class="today-missing-list" hidden></div>
+        <div class="actions" style="margin-top: 0.9rem">
+          <button type="button" class="btn btn-secondary" id="refresh-today-btn">
+            🔄 重新整理今日名單
           </button>
-        </div>
-        <div class="leaderboard" id="leaderboard">
-          <p class="empty-state" id="lb-empty">載入中…</p>
-          <table id="lb-table" hidden>
-            <thead>
-              <tr>
-                <th>年級</th>
-                <th>總量最少 🥇</th>
-                <th>總量 (kg)</th>
-                <th>平均最少 ⭐</th>
-                <th>平均 (kg)</th>
-              </tr>
-            </thead>
-            <tbody id="lb-body"></tbody>
-          </table>
-        </div>
-      </section>
-
-      <!-- 上月年級排行榜 -->
-      <section class="card" aria-labelledby="last-dash-title">
-        <h2 id="last-dash-title"><span class="emoji">🏆</span> 上月年級惜食榜</h2>
-        <p class="hint" style="margin: -0.5rem 0 1rem">
-          顯示小三至小六各年級「總剩食最少」與「平均剩食最少」的班級（上月 <span id="last-grade-month-label">—</span> 累計）。
-        </p>
-        <div class="leaderboard" id="last-leaderboard">
-          <p class="empty-state" id="last-lb-empty">載入中…</p>
-          <table id="last-lb-table" hidden>
-            <thead>
-              <tr>
-                <th>年級</th>
-                <th>總量最少 🥇</th>
-                <th>總量 (kg)</th>
-                <th>平均最少 ⭐</th>
-                <th>平均 (kg)</th>
-              </tr>
-            </thead>
-            <tbody id="last-lb-body"></tbody>
-          </table>
         </div>
       </section>
     </main>
 
     <p class="footer-note">
-      無廣告 · 無追蹤 · 純靜態頁面 · 資料存於 Google 試算表（或本機示範）
+      無廣告 · 無追蹤 · 月統計與排行在 <a href="stats.html">統計頁</a>
     </p>
   </div>
 
